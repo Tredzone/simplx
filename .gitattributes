@@ -1,0 +1,8 @@
+# Unix carriage return for all files
+* text eol=lf
+
+*.jpg binary
+*.png binary
+*.docx binary
+*.odt binary
+

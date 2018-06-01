@@ -1,0 +1,37 @@
+/**
+@mainpage Simplx
+
+\section intro_sec About
+
+Simplx is a C++ development framework for building reliable cache-friendly distributed and concurrent multicore software.
+
+Simplx was developped by [Tredzone SAS](http://www.tredzone.com). We provide software technology solutions and services dedicated to high-performance real-time processing. Our technology enables low and predictable latency, scalability, and high throughput. We also offer support contracts and enterprise tools for monitoring, profiling, debugging, server clustering under commercial licenses.
+
+Simplx is used at the Paris stock exchange by Euronext's market exchange platform, called "Optiq", and has been successfully deployed since November 2016.
+
+Tredzone was founded in 2013 and operates in France, the UK and US.
+
+
+\section license_sec License
+
+Simplx is open-sourced under the Apache 2.0 license, please see the file "LICENSE" in our <a href="http://github.com/tredzone/simplx">github repo</a>.
+
+
+
+\section coding_conventions_sec Coding conventions
+
+We use *struct* and *class* differently based on the object type (although they're technically interchangeble)
+- typename *struct* for Event types as they're often Plain Old Data (POD)
+- typename *class* for Actor, Engine and everything else
+
+Header files located at:
+
+ `/include/trz/engine/internal/*.h`
+ 
+are used internally by the Simplx runtime; they're not documented and subject to change. You shouldn't need those directly in order to write client applications anyway.
+
+
+<br/>
+<br/>
+
+*/

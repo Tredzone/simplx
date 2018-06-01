@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeLite_Project Name="Tests" Version="10.0.0" InternalType="Console">
+  <Description/>
+  <Dependencies/>
+  <VirtualDirectory Name="src">
+    <VirtualDirectory Name="engine">
+      <File Name="../../src/engine/actor.cpp"/>
+      <File Name="../../src/engine/e2econnector.cpp" ExcludeProjConfig="Debug gcc"/>
+      <File Name="../../src/engine/engine.cpp"/>
+      <File Name="../../src/engine/node.cpp"/>
+      <File Name="../../src/engine/linux/platform_gcc.cpp"/>
+    </VirtualDirectory>
+    <File Name="../../test/maintest.cpp"/>
+    <VirtualDirectory Name="test">
+      <File Name="../../test/testasync.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testasyncactor.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testasyncengine.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testasynceventloop.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testasyncinitializer.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testmdoublechain.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testmforwardchain.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testparallel.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testproperty.cpp" ExcludeProjConfig=""/>
+      <File Name="../../test/testtime.cpp" ExcludeProjConfig=""/>
+    </VirtualDirectory>
+  </VirtualDirectory>
+  <VirtualDirectory Name="include">
+    <VirtualDirectory Name="engine">
+      <File Name="../../include/trz/engine/platform.h"/>
+      <File Name="../../include/trz/engine/actor.h"/>
+      <File Name="../../include/trz/engine/engine.h"/>
+      <File Name="../../include/trz/engine/engineversion.h"/>
+      <File Name="../../include/trz/engine/initializer.h"/>
+      <VirtualDirectory Name="internal">
+        <File Name="../../include/trz/engine/internal/cacheline.h"/>
+        <File Name="../../include/trz/engine/internal/dlldecoration.h"/>
+        <File Name="../../include/trz/engine/internal/dlldecorationrestore.h"/>
+        <File Name="../../include/trz/engine/internal/dlldecorationsave.h"/>
+        <File Name="../../include/trz/engine/internal/e2econnector.h"/>
+        <File Name="../../include/trz/engine/internal/macro.h"/>
+        <File Name="../../include/trz/engine/internal/mdoublechain.h"/>
+        <File Name="../../include/trz/engine/internal/mforwardchain.h"/>
+        <File Name="../../include/trz/engine/internal/node.h"/>
+        <File Name="../../include/trz/engine/internal/parallel.h"/>
+        <File Name="../../include/trz/engine/internal/property.h"/>
+        <File Name="../../include/trz/engine/internal/rtexception.h"/>
+        <File Name="../../include/trz/engine/internal/serialbufferchain.h"/>
+        <File Name="../../include/trz/engine/internal/stringstream.h"/>
+        <File Name="../../include/trz/engine/internal/thread.h"/>
+        <File Name="../../include/trz/engine/internal/time.h"/>
+        <VirtualDirectory Name="linux">
+          <File Name="../../include/trz/engine/internal/linux/platform_gcc.h"/>
+        </VirtualDirectory>
+        <File Name="../../include/trz/engine/internal/intrinsics.h"/>
+      </VirtualDirectory>
+    </VirtualDirectory>
+    <File Name="../../test/testutil.h"/>
+    <File Name="../../include/simplx.h"/>
+  </VirtualDirectory>
+  <Settings Type="Executable">
+    <GlobalSettings>
+      <Compiler Options="-Wall;-pedantic;-Werror;-Wextra;--std=c++11" C_Options="" Assembler="">
+        <IncludePath Value="../../include"/>
+        <IncludePath Value="../../thirdparty/googletest/googletest/include"/>
+      </Compiler>
+      <Linker Options=""/>
+      <ResourceCompiler Options=""/>
+    </GlobalSettings>
+    <Configuration Name="Debug clang libcxx" CompilerType="clang++" DebuggerType="GNU gdb debugger" Type="Executable" BuildCmpWithGlobalSettings="append" BuildLnkWithGlobalSettings="append" BuildResWithGlobalSettings="append">
+      <Compiler Options="-g;-O0;-Wall;-pthread;-stdlib=libc++" C_Options="-g;-O0;-Wall" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" PCHFlags="" PCHFlagsPolicy="0">
+        <Preprocessor Value="TREDZONE_PLATFORM_LINUX"/>
+      </Compiler>
+      <Linker Options="-pthread" Required="yes">
+        <LibraryPath Value="$(LXBUILD)/gtest_libcxx"/>
+        <Library Value="gtest"/>
+        <Library Value="c++"/>
+      </Linker>
+      <ResourceCompiler Options="" Required="no"/>
+      <General OutputFile="testd_clang_libcxx.bin" IntermediateDirectory="./Debug" Command="./testd_clang_libcxx.bin" CommandArguments="" UseSeparateDebugArgs="no" DebugArguments="" WorkingDirectory="$(WorkspacePath)" PauseExecWhenProcTerminates="yes" IsGUIProgram="no" IsEnabled="yes"/>
+      <BuildSystem Name="Default"/>
+      <Environment EnvVarSetName="&lt;Use Defaults&gt;" DbgSetName="&lt;Use Defaults&gt;">
+        <![CDATA[]]>
+      </Environment>
+      <Debugger IsRemote="no" RemoteHostName="" RemoteHostPort="" DebuggerPath="" IsExtended="no">
+        <DebuggerSearchPaths/>
+        <PostConnectCommands/>
+        <StartupCommands/>
+      </Debugger>
+      <PreBuild/>
+      <PostBuild/>
+      <CustomBuild Enabled="no">
+        <RebuildCommand/>
+        <CleanCommand/>
+        <BuildCommand/>
+        <PreprocessFileCommand/>
+        <SingleFileCommand/>
+        <MakefileGenerationCommand/>
+        <ThirdPartyToolName>None</ThirdPartyToolName>
+        <WorkingDirectory/>
+      </CustomBuild>
+      <AdditionalRules>
+        <CustomPostBuild/>
+        <CustomPreBuild/>
+      </AdditionalRules>
+      <Completion EnableCpp11="no" EnableCpp14="no">
+        <ClangCmpFlagsC/>
+        <ClangCmpFlags/>
+        <ClangPP/>
+        <SearchPaths/>
+      </Completion>
+    </Configuration>
+    <Configuration Name="Debug clang stdcxx" CompilerType="clang++" DebuggerType="GNU gdb debugger" Type="Executable" BuildCmpWithGlobalSettings="append" BuildLnkWithGlobalSettings="append" BuildResWithGlobalSettings="append">
+      <Compiler Options="-g;-O0;-Wall;-pthread;" C_Options="-g;-O0;-Wall" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" PCHFlags="" PCHFlagsPolicy="0">
+        <Preprocessor Value="TREDZONE_PLATFORM_LINUX"/>
+      </Compiler>
+      <Linker Options="-pthread" Required="yes">
+        <Library Value="gtest"/>
+      </Linker>
+      <ResourceCompiler Options="" Required="no"/>
+      <General OutputFile="testd_clang.bin" IntermediateDirectory="./Debug" Command="./testd_clang.bin" CommandArguments="" UseSeparateDebugArgs="no" DebugArguments="" WorkingDirectory="$(WorkspacePath)" PauseExecWhenProcTerminates="yes" IsGUIProgram="no" IsEnabled="yes"/>
+      <BuildSystem Name="Default"/>
+      <Environment EnvVarSetName="&lt;Use Defaults&gt;" DbgSetName="&lt;Use Defaults&gt;">
+        <![CDATA[]]>
+      </Environment>
+      <Debugger IsRemote="no" RemoteHostName="" RemoteHostPort="" DebuggerPath="" IsExtended="no">
+        <DebuggerSearchPaths/>
+        <PostConnectCommands/>
+        <StartupCommands/>
+      </Debugger>
+      <PreBuild/>
+      <PostBuild/>
+      <CustomBuild Enabled="no">
+        <RebuildCommand/>
+        <CleanCommand/>
+        <BuildCommand/>
+        <PreprocessFileCommand/>
+        <SingleFileCommand/>
+        <MakefileGenerationCommand/>
+        <ThirdPartyToolName>None</ThirdPartyToolName>
+        <WorkingDirectory/>
+      </CustomBuild>
+      <AdditionalRules>
+        <CustomPostBuild/>
+        <CustomPreBuild/>
+      </AdditionalRules>
+      <Completion EnableCpp11="no" EnableCpp14="no">
+        <ClangCmpFlagsC/>
+        <ClangCmpFlags/>
+        <ClangPP/>
+        <SearchPaths/>
+      </Completion>
+    </Configuration>
+    <Configuration Name="Debug gcc" CompilerType="gnu g++" DebuggerType="GNU gdb debugger" Type="Executable" BuildCmpWithGlobalSettings="append" BuildLnkWithGlobalSettings="append" BuildResWithGlobalSettings="append">
+      <Compiler Options="-g;-O0;-Wall;-pthread" C_Options="-g;-O0;-Wall" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" PCHFlags="" PCHFlagsPolicy="0">
+        <IncludePath Value="../../include"/>
+        <IncludePath Value="../../thirdparty/googletest/googletest/include"/>
+        <Preprocessor Value="TREDZONE_PLATFORM_LINUX"/>
+      </Compiler>
+      <Linker Options="-pthread" Required="yes">
+        <Library Value="gtest"/>
+      </Linker>
+      <ResourceCompiler Options="" Required="no"/>
+      <General OutputFile="testd.bin" IntermediateDirectory="./Debug" Command="./testd.bin" CommandArguments="" UseSeparateDebugArgs="no" DebugArguments=" " WorkingDirectory="$(WorkspacePath)" PauseExecWhenProcTerminates="yes" IsGUIProgram="no" IsEnabled="yes"/>
+      <BuildSystem Name="Default"/>
+      <Environment EnvVarSetName="&lt;Use Defaults&gt;" DbgSetName="&lt;Use Defaults&gt;">
+        <![CDATA[]]>
+      </Environment>
+      <Debugger IsRemote="no" RemoteHostName="" RemoteHostPort="" DebuggerPath="" IsExtended="no">
+        <DebuggerSearchPaths/>
+        <PostConnectCommands/>
+        <StartupCommands/>
+      </Debugger>
+      <PreBuild/>
+      <PostBuild/>
+      <CustomBuild Enabled="no">
+        <RebuildCommand/>
+        <CleanCommand/>
+        <BuildCommand/>
+        <PreprocessFileCommand/>
+        <SingleFileCommand/>
+        <MakefileGenerationCommand/>
+        <ThirdPartyToolName>None</ThirdPartyToolName>
+        <WorkingDirectory/>
+      </CustomBuild>
+      <AdditionalRules>
+        <CustomPostBuild/>
+        <CustomPreBuild/>
+      </AdditionalRules>
+      <Completion EnableCpp11="no" EnableCpp14="no">
+        <ClangCmpFlagsC/>
+        <ClangCmpFlags/>
+        <ClangPP/>
+        <SearchPaths/>
+      </Completion>
+    </Configuration>
+    <Configuration Name="Release gcc" CompilerType="gnu g++" DebuggerType="GNU gdb debugger" Type="Executable" BuildCmpWithGlobalSettings="append" BuildLnkWithGlobalSettings="append" BuildResWithGlobalSettings="append">
+      <Compiler Options="-O3;-Wall;-std=c++11;-pthread;-mtune=native" C_Options="-O3;-Wall" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" PCHFlags="" PCHFlagsPolicy="0">
+        <Preprocessor Value="NDEBUG"/>
+        <Preprocessor Value="TREDZONE_PLATFORM_LINUX"/>
+      </Compiler>
+      <Linker Options="-lpthread" Required="yes"/>
+      <ResourceCompiler Options="" Required="no"/>
+      <General OutputFile="test_rel.bin" IntermediateDirectory="./Release" Command="./test_rel.bin" CommandArguments="" UseSeparateDebugArgs="no" DebugArguments="" WorkingDirectory="$(WorkspacePath)" PauseExecWhenProcTerminates="yes" IsGUIProgram="no" IsEnabled="yes"/>
+      <BuildSystem Name="Default"/>
+      <Environment EnvVarSetName="&lt;Use Defaults&gt;" DbgSetName="&lt;Use Defaults&gt;">
+        <![CDATA[]]>
+      </Environment>
+      <Debugger IsRemote="no" RemoteHostName="" RemoteHostPort="" DebuggerPath="" IsExtended="no">
+        <DebuggerSearchPaths/>
+        <PostConnectCommands/>
+        <StartupCommands/>
+      </Debugger>
+      <PreBuild/>
+      <PostBuild/>
+      <CustomBuild Enabled="no">
+        <RebuildCommand/>
+        <CleanCommand/>
+        <BuildCommand/>
+        <PreprocessFileCommand/>
+        <SingleFileCommand/>
+        <MakefileGenerationCommand/>
+        <ThirdPartyToolName>None</ThirdPartyToolName>
+        <WorkingDirectory/>
+      </CustomBuild>
+      <AdditionalRules>
+        <CustomPostBuild/>
+        <CustomPreBuild/>
+      </AdditionalRules>
+      <Completion EnableCpp11="no" EnableCpp14="no">
+        <ClangCmpFlagsC/>
+        <ClangCmpFlags/>
+        <ClangPP/>
+        <SearchPaths/>
+      </Completion>
+    </Configuration>
+  </Settings>
+</CodeLite_Project>

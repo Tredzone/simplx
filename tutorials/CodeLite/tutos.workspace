@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeLite_Workspace Name="tutos" Database="" Version="10.0.0">
+  <Project Name="tutos" Path="tutos.project" Active="Yes"/>
+  <BuildMatrix>
+    <WorkspaceConfiguration Name="Debug gcc" Selected="no">
+      <Environment/>
+      <Project Name="tutos" ConfigName="Debug gcc"/>
+    </WorkspaceConfiguration>
+    <WorkspaceConfiguration Name="Release gcc" Selected="no">
+      <Environment/>
+      <Project Name="tutos" ConfigName="Release"/>
+    </WorkspaceConfiguration>
+    <WorkspaceConfiguration Name="Debug clang stdcxx" Selected="yes">
+      <Environment/>
+      <Project Name="tutos" ConfigName="Debug clang libcxx"/>
+    </WorkspaceConfiguration>
+    <WorkspaceConfiguration Name="Debug clang libcxx" Selected="no">
+      <Environment/>
+      <Project Name="tutos" ConfigName="Debug clang libcxx"/>
+    </WorkspaceConfiguration>
+  </BuildMatrix>
+</CodeLite_Workspace>

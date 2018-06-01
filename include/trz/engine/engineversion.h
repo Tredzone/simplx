@@ -1,0 +1,13 @@
+/**
+ * @file engineversion.h
+ * @brief Simplx version information
+ * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * Please see accompanying LICENSE file for licensing terms.
+ */
+
+#pragma once
+
+#define TREDZONE_ENGINE_VERSION_MAJOR 2                      // major version
+#define TREDZONE_ENGINE_VERSION_MINOR 6                      // minor version
+#define TREDZONE_ENGINE_VERSION_PATCH 4                      // patch version
+#define TREDZONE_ENGINE_VERSION_BRANCH "variadic_push_event" // git branch
