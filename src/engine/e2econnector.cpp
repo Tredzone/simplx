@@ -420,7 +420,6 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     assert(event.clientNodeId < subscriberNodeEntryVector.size());
     if (event.unsubscribeFlag)
     {
-        assert(event.clientNodeId == singletonClientNodeId(event.getSourceActorId()));
         if (event.clientNodeId == singletonClientNodeId(event.getSourceActorId()))
         {
             singletonClientUnsubscribe(event.clientNodeId);
