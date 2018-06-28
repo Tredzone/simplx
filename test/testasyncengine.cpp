@@ -23,15 +23,15 @@ struct TestCoreSet : tredzone::Engine::CoreSet
     }
 };
 
-struct TestStartSequence : AsyncEngine::StartSequence
+struct TestStartSequence : Engine::StartSequence
 {
-    TestStartSequence(const tredzone::Engine::CoreSet &coreSet = TestCoreSet()) : AsyncEngine::StartSequence(coreSet) {}
+    TestStartSequence(const tredzone::Engine::CoreSet &coreSet = TestCoreSet()) : Engine::StartSequence(coreSet) {}
 };
 
 class TestEngine
 {
   public:
-    TestEngine(AsyncEngine::StartSequence &startSequence)
+    TestEngine(Engine::StartSequence &startSequence)
         : asyncEngine((startSequence.setAsyncEngineCustomCoreActorFactory(testAsyncEngineCustomCoreActorFactory),
                        startSequence))
     {
@@ -44,13 +44,13 @@ class TestEngine
         volatile unsigned coreCount;
         TestAsyncEngineCustomCoreActorFactory() : coreCount(0) {}
         virtual ~TestAsyncEngineCustomCoreActorFactory() noexcept { EXPECT_EQ(0u, coreCount); }
-        virtual AsyncActor::ActorReference<AsyncActor> newCustomCoreActor(AsyncEngine &, AsyncActor::CoreId, bool,
-                                                                          AsyncActor &parent)
+        virtual Actor::ActorReference<Actor> newCustomCoreActor(Engine &, Actor::CoreId, bool,
+                                                                          Actor &parent)
         {
             return parent.newReferencedActor<TestCoreActor>(&coreCount);
         }
     };
-    struct TestCoreActor : AsyncActor
+    struct TestCoreActor : Actor
     {
         volatile unsigned &coreCount;
         TestCoreActor(volatile unsigned *pcoreCount) : coreCount(*pcoreCount)
@@ -66,7 +66,7 @@ class TestEngine
     };
 
     TestAsyncEngineCustomCoreActorFactory testAsyncEngineCustomCoreActorFactory;
-    AsyncEngine asyncEngine;
+    Engine asyncEngine;
 };
 
 struct TestModule : Actor
@@ -85,20 +85,20 @@ struct TestModule : Actor
 template <class _AsyncEngine> void testInit()
 {
     {
-        AsyncEngine::CoreSet coreSet;
+        Engine::CoreSet coreSet;
         TestStartSequence startSequence(coreSet);
         _AsyncEngine engine(startSequence);
     }
     {
         TestStartSequence startSequence;
-        startSequence.addActor<TestModule>(0, AsyncActor::property_type::Collection(startSequence.getAllocator()));
+        startSequence.addActor<TestModule>(0, Actor::property_type::Collection(startSequence.getAllocator()));
         _AsyncEngine engine(startSequence);
     }
 }
 
 static void testInit()
 {
-    testInit<AsyncEngine>();
+    testInit<Engine>();
     testInit<TestEngine>();
 }
 
@@ -362,7 +362,7 @@ struct TestMemoryHogActor : public Actor
 // test Anonymous Service
 void testAnonymousService()
 {
-    AsyncEngine::StartSequence startSequence;
+    Engine::StartSequence startSequence;
     startSequence.addServiceActor<TestStartSequence::AnonymousService, TestActor>(0);
     startSequence.addServiceActor<TestActor::Tag, TestActor>(0);
 
@@ -375,7 +375,7 @@ void testInvalidCore()
     ASSERT_THROW(startSequence.addActor<TestActor>((tredzone::Engine::CoreId)tredzone::cpuGetCount()), std::runtime_error);
 }
 
-void testUnreleasedMemory()
+void testUnreleasedMemory()                 // [PL to check]
 {
     TestMemoryHogActor::Shared shared;
     TestStartSequence startSequence;
@@ -389,11 +389,11 @@ void testUnreleasedMemory()
     sleep(1000);
 }
 
-TEST(AsyncEngine, init) { testInit(); }
-TEST(AsyncEngine, initException) { testInitException(); }
-TEST(AsyncEngine, allocator) { testAllocator(); }
-TEST(AsyncEngine, coreInUseException) { testCoreInUseException(); }
-TEST(AsyncEngine, basicService) { testBasicService(); }
-TEST(AsyncEngine, anonymousService) { testAnonymousService(); }
-TEST(AsyncEngine, invalidCore) { testInvalidCore(); }
-TEST(AsyncEngine, DISABLED_unreleasedMemory) { testUnreleasedMemory(); }
+TEST(Engine, init) { testInit(); }
+TEST(Engine, initException) { testInitException(); }
+TEST(Engine, allocator) { testAllocator(); }
+TEST(Engine, coreInUseException) { testCoreInUseException(); }
+TEST(Engine, basicService) { testBasicService(); }
+TEST(Engine, anonymousService) { testAnonymousService(); }
+TEST(Engine, invalidCore) { testInvalidCore(); }
+TEST(Engine, DISABLED_unreleasedMemory) { testUnreleasedMemory(); }

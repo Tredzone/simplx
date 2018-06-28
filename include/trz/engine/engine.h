@@ -31,35 +31,28 @@ bool TREDZONE_SDK_IS_DEBUG_RELEASE_COMPATIBLE(bool isNDEBUG);
  * @return true if the library is compiler compatible.
  */
 bool TREDZONE_SDK_IS_COMPILER_COMPATIBLE(int compilerId, const void *compilerVersion);
-/**
- * @brief Check if the linked Tredzone library is engine compatible with the user's binary
- * @param sdkCompatibilityVersion Tredzone library's version
- * @param sdkPatchVersion Tredzone library's version
- * @return true if the library is engine compatible.
- */
-bool TREDZONE_SDK_COMPATIBLE(int sdkCompatibilityVersion, int sdkPatchVersion);
 
 #ifdef TREDZONE_COMPILER_ID
-#error TREDZONE_COMPILER_ID macro already defined
+    #error TREDZONE_COMPILER_ID macro already defined
 #endif
-#pragma pack(push, 1)
+    #pragma pack(push, 1)
 #if defined(__GNUG__)
-/**
- * @def TREDZONE_COMPILER_ID
- * @brief Compiler specific identifier used for library compatibility check
- */
-#define TREDZONE_COMPILER_ID 1
-struct TREDZONE_SDK_COMPILER_VERSION_type
-{
-    int vmajor;
-    int vminor;
-    int vpatch;
-    inline TREDZONE_SDK_COMPILER_VERSION_type() : vmajor(__GNUC__), vminor(__GNUC_MINOR__), vpatch(__GNUC_PATCHLEVEL__)
+    /**
+     * @def TREDZONE_COMPILER_ID
+     * @brief Compiler specific identifier used for library compatibility check
+     */
+    #define TREDZONE_COMPILER_ID 1
+    struct TREDZONE_SDK_COMPILER_VERSION_type
     {
-    }
-};
+        int vmajor;
+        int vminor;
+        int vpatch;
+        inline TREDZONE_SDK_COMPILER_VERSION_type() : vmajor(__GNUC__), vminor(__GNUC_MINOR__), vpatch(__GNUC_PATCHLEVEL__)
+        {
+        }
+    };
 #else
-#error C++ compiler not supported!
+    #error C++ compiler not supported!
 #endif
 #pragma pack(pop)
 }
@@ -67,17 +60,17 @@ struct TREDZONE_SDK_COMPILER_VERSION_type
 namespace tredzone
 {
 
-class AsyncEngine;
+class Engine;
 class AsyncNodeManager;
 class AsyncEngineCustomEventLoopFactory;
 class AsyncEngineToEngineConnector;
-typedef AsyncEngine Engine;
+typedef Engine Engine;
 
 /**
  * @brief Asynchronous exception handler that contains a Mutex that is locked for screen output.
  * onEventException() and onUnreachableException() can be specialized by inheritance. These
  * methods are called by the engine under mutex-lock.
- * In case of specialization, use AsyncEngine::StartSequence::setAsyncExceptionHandler() method
+ * In case of specialization, use Engine::StartSequence::setAsyncExceptionHandler() method
  * to set the reference of an external exception-handler.
  * <br><b>The external exception-handler instance must outlive the engine instance.</b>
  */
@@ -86,17 +79,17 @@ class AsyncExceptionHandler
   public:
     /** Destructor */
     virtual ~AsyncExceptionHandler() {}
-    void onEventExceptionSynchronized(AsyncActor *, const std::type_info &asyncActorTypeInfo,
-                                      const char *onXXX_FunctionName, const AsyncActor::Event &,
+    void onEventExceptionSynchronized(Actor *, const std::type_info &asyncActorTypeInfo,
+                                      const char *onXXX_FunctionName, const Actor::Event &,
                                       const char *whatException) noexcept;
-    void onUnreachableExceptionSynchronized(AsyncActor &, const std::type_info &asyncActorTypeInfo,
-                                            const AsyncActor::ActorId::RouteIdComparable &,
+    void onUnreachableExceptionSynchronized(Actor &, const std::type_info &asyncActorTypeInfo,
+                                            const Actor::ActorId::RouteIdComparable &,
                                             const char *whatException) noexcept;
-    virtual void onEventException(AsyncActor *, const std::type_info &asyncActorTypeInfo,
-                                  const char *onXXX_FunctionName, const AsyncActor::Event &,
+    virtual void onEventException(Actor *, const std::type_info &asyncActorTypeInfo,
+                                  const char *onXXX_FunctionName, const Actor::Event &,
                                   const char *whatException) noexcept;
-    virtual void onUnreachableException(AsyncActor &, const std::type_info &asyncActorTypeInfo,
-                                        const AsyncActor::ActorId::RouteIdComparable &,
+    virtual void onUnreachableException(Actor &, const std::type_info &asyncActorTypeInfo,
+                                        const Actor::ActorId::RouteIdComparable &,
                                         const char *whatException) noexcept;
 
   private:
@@ -124,12 +117,12 @@ class AsyncEngineEventLoop
      * @brief Getter to the current engine instance.
      * @return the current engine instance.
      */
-    AsyncEngine &getEngine() noexcept;
+    Engine &getEngine() noexcept;
     /**
      * @brief Getter to the current engine instance.
      * @return the current engine const instance.
      */
-    const AsyncEngine &getEngine() const noexcept;
+    const Engine &getEngine() const noexcept;
 
   protected:
     virtual void run() noexcept = 0;
@@ -138,7 +131,7 @@ class AsyncEngineEventLoop
     void runWhileNotInterrupted() noexcept;
     void synchronize() noexcept;
     bool isRunning() noexcept;
-    void returnToSender(const AsyncActor::Event &) noexcept;
+    void returnToSender(const Actor::Event &) noexcept;
     Actor::NodeId getNodeId() const noexcept;
     Actor::CoreId getCoreId() const noexcept;
     AsyncExceptionHandler &getAsyncExceptionHandler() const noexcept;
@@ -172,7 +165,7 @@ class AsyncEngineEventLoop
 /**
  * @brief Base-class to specialize the engine's event-loop.
  * Specialization is achieved by overriding virtual newEventLoop() method.
- * In case of specialization, use AsyncEngine::StartSequence::setAsyncEngineCustomEventLoopFactory()
+ * In case of specialization, use Engine::StartSequence::setAsyncEngineCustomEventLoopFactory()
  * method to set the reference of an external event-loop-factory.
  * <br><b>The external event-loop-factory instance must outlive the engine instance.</b>
  */
@@ -277,7 +270,7 @@ class AsyncEngineCustomEventLoopFactory
  * A core-actor is run on every event-loop (cpu-core).
  * By default DefaultCoreActor is used.
  * Specialization is achieved by overriding virtual newCustomCoreActor() method.
- * In case of specialization, use AsyncEngine::StartSequence::setAsyncEngineCustomCoreActorFactory()
+ * In case of specialization, use Engine::StartSequence::setAsyncEngineCustomCoreActorFactory()
  * method to set the reference of an external core-actor-factory.
  * <br><b>The external core-actor-factory instance must outlive the engine instance.</b>
  */
@@ -297,8 +290,8 @@ class AsyncEngineCustomCoreActorFactory
      * @throw ? Any other exception possibly thrown depending on specialized core-actor
      * constructor call.
      */
-    virtual AsyncActor::ActorReference<AsyncActor> newCustomCoreActor(AsyncEngine &, AsyncActor::CoreId, bool,
-                                                                      AsyncActor &parent)
+    virtual Actor::ActorReference<Actor> newCustomCoreActor(Engine &, Actor::CoreId, bool,
+                                                                      Actor &parent)
     {
         return parent.newReferencedActor<DefaultCoreActor>();
     }
@@ -307,7 +300,7 @@ class AsyncEngineCustomCoreActorFactory
     /**
      * @brief DefaultCoreActor calls threadYield() on every callback
      */
-    struct DefaultCoreActor : AsyncActor, AsyncActor::Callback
+    struct DefaultCoreActor : Actor, Actor::Callback
     {
         inline DefaultCoreActor() { registerPerformanceNeutralCallback(*this); }
         inline void onCallback() noexcept
@@ -318,12 +311,21 @@ class AsyncEngineCustomCoreActorFactory
     };
 };
 
+class IEngine
+{
+public:
+    // ctor
+    IEngine()   {};
+    
+    virtual ~IEngine() = default;
+};
+
 /**
  * @brief Tredzone runtime engine.
  *
  * The Engine manages the Actor's life cycle, event distribution, callback...
  */
-class AsyncEngine
+class Engine: public IEngine
 {
   public:
     static const int SDK_ARCHITECTURE = 1;                                      /**< Hardware specific identifier */
@@ -331,7 +333,7 @@ class AsyncEngine
     static const int SDK_PATCH_VERSION = TREDZONE_ENGINE_VERSION_PATCH;         /**< SDK patch version */
     static const int DEFAULT_EVENT_ALLOCATOR_PAGE_SIZE = 64 * 1024; /**< Default event allocator page size */
 
-    typedef AsyncActor::CoreId CoreId;
+    typedef Actor::CoreId CoreId;
     /**
      * @brief Runtime exception that can be thrown when checking the user's binary compatibility with the Tredzone
      * library
@@ -355,35 +357,35 @@ class AsyncEngine
             switch (cause)
             {
             case E_DEBUG_RELEASE:
-                return "tredzone::AsyncEngine::RuntimeCompatibilityException [debug/release mode used to build current "
+                return "tredzone::Engine::RuntimeCompatibilityException [debug/release mode used to build current "
                        "binary mismatches TREDZONE RUNTIME]";
             case E_COMPILER_VERSION:
-                return "tredzone::AsyncEngine::RuntimeCompatibilityException [inconsistent version of C++ compiler "
+                return "tredzone::Engine::RuntimeCompatibilityException [inconsistent version of C++ compiler "
                        "used to build TREDZONE SDK and the current binary]";
             case E_ENGINE_VERSION:
-                return "tredzone::AsyncEngine::RuntimeCompatibilityException [the TREDZONE SDK version used to build "
+                return "tredzone::Engine::RuntimeCompatibilityException [the TREDZONE SDK version used to build "
                        "the current binary is incompatible with the TREDZONE RUNTIME used to run the current binary]";
             default:
-                return "tredzone::AsyncEngine::RuntimeCompatibilityException [?]";
+                return "tredzone::Engine::RuntimeCompatibilityException [?]";
             }
         }
     };
     /**
-     * @brief CoreInUseException is thrown if AsyncEngine::newCore() method was attempted
+     * @brief CoreInUseException is thrown if Engine::newCore() method was attempted
      * using a cpu core-id with an event-loop already running.
      */
     struct CoreInUseException : std::exception
     {
-        virtual const char *what() const noexcept { return "tredzone::AsyncEngine::CoreInUseException"; }
+        virtual const char *what() const noexcept { return "tredzone::Engine::CoreInUseException"; }
     };
     /**
      * @brief UndersizedException is thrown if the ServiceIndex is full.
      */
     struct UndersizedException : std::bad_alloc
     {
-        virtual const char *what() const noexcept { return "tredzone::AsyncEngine::UndersizedException"; }
+        virtual const char *what() const noexcept { return "tredzone::Engine::UndersizedException"; }
     };
-    typedef Property<AsyncActor::Allocator<char>> AsyncProperty;
+    typedef Property<Actor::Allocator<char>> AsyncProperty;
 
     /**
      * @brief Vector like container for cpu core-ids.
@@ -391,13 +393,13 @@ class AsyncEngine
     class CoreSet
     {
       public:
-        typedef AsyncActor::NodeId NodeId;
-        /** @brief Thrown when the number of cpu-cores exceeds AsyncActor::MAX_NODE_COUNT. */
+        typedef Actor::NodeId NodeId;
+        /** @brief Thrown when the number of cpu-cores exceeds Actor::MAX_NODE_COUNT. */
         struct TooManyCoresException : std::exception
         {
             virtual const char *what() const noexcept
             {
-                return "tredzone::AsyncEngine::CoreSet::TooManyCoresException";
+                return "tredzone::Engine::CoreSet::TooManyCoresException";
             }
         };
         /** @brief Thrown when the provided cpu-core is invalid. */
@@ -405,7 +407,7 @@ class AsyncEngine
         {
             virtual const char *what() const noexcept
             {
-                return "tredzone::AsyncEngine::CoreSet::UndefinedCoreException";
+                return "tredzone::Engine::CoreSet::UndefinedCoreException";
             }
         };
 
@@ -436,7 +438,7 @@ class AsyncEngine
 
       private:
         size_t coreCount;
-        CoreId cores[AsyncActor::MAX_NODE_COUNT];
+        CoreId cores[Actor::MAX_NODE_COUNT];
     };
 
     /**
@@ -447,7 +449,7 @@ class AsyncEngine
         /**
          * @brief Constructor
          * @throw TooManyCoresException If the available number of cpu-cores
-         * exceeds AsyncActor::MAX_NODE_COUNT.
+         * exceeds Actor::MAX_NODE_COUNT.
          */
         FullCoreSet();
     };
@@ -477,7 +479,7 @@ class AsyncEngine
          * @brief Get the ActorId associated to the given service-tag (_Service)
          * @return Found ActorId or null if not found
          */
-        template <class _Service> const AsyncActor::ActorId &getServiceActorId() const noexcept
+        template <class _Service> const Actor::ActorId &getServiceActorId() const noexcept
         {
             int i = 0;
             for (const unsigned index = getIndexValue<_Service>();
@@ -494,7 +496,7 @@ class AsyncEngine
          * @brief Set Registry value for given service-tag (_Service)
          * @throws UndersizedException is thrown if ServiceIndex has reached the MAX_SIZE value. ie: registry is full.
          */
-        template <class _Service> void setServiceActorId(const AsyncActor::ActorId &actorId)
+        template <class _Service> void setServiceActorId(const Actor::ActorId &actorId)
         {
             int i = 0;
             unsigned index = getIndexValue<_Service>();
@@ -515,14 +517,14 @@ class AsyncEngine
         struct Table
         {
             unsigned index;
-            AsyncActor::ActorId actorId;
+            Actor::ActorId actorId;
             std::string name;
             inline Table() noexcept : index(0) {}
         };
 
         static Mutex mutex;
         static unsigned staticIndexValue;
-        AsyncActor::ActorId null;
+        Actor::ActorId null;
         Table table[MAX_SIZE];
 
         /**
@@ -543,7 +545,7 @@ class AsyncEngine
      * All actors will start in the strict order of their declaration using
      * addActor() and addServiceActor() methods.
      * Actors declared as service (see addServiceActor()) can only be
-     * destroyed (called on their AsyncActor::onDestroyRequest() method) after
+     * destroyed (called on their Actor::onDestroyRequest() method) after
      * all non-service-actors destruction was completed.
      * This behavior is seamless to the user. Destruction sequence is
      * managed by the engine. Once service-actors starts to be destroyed,
@@ -563,7 +565,7 @@ class AsyncEngine
         {
             virtual const char *what() const noexcept
             {
-                return "tredzone::AsyncEngine::StartSequence::DuplicateServiceException";
+                return "tredzone::Engine::StartSequence::DuplicateServiceException";
             }
         };
         /**
@@ -587,7 +589,7 @@ class AsyncEngine
         ~StartSequence() noexcept;
         /**
          * @brief Getter.
-         * @return A allocator of same type as event-loop local allocator (see AsyncActor::Allocator).
+         * @return A allocator of same type as event-loop local allocator (see Actor::Allocator).
          * @note This is useful, at actor's construction, to pass parameters
          * that can be assignable when using event-loop local allocator.
          * <br>Example:
@@ -616,7 +618,7 @@ class AsyncEngine
          * }
          * \endcode
          */
-        AsyncActor::AllocatorBase getAllocator() const noexcept;
+        Actor::AllocatorBase getAllocator() const noexcept;
         /**
          * @brief Set the red-zone properties
          * @param Properties to be set
@@ -770,7 +772,7 @@ class AsyncEngine
         const char *getEngineSuffix() const noexcept;
 
       private:
-        friend class AsyncEngine;
+        friend class Engine;
         struct Starter : MultiForwardChainLink<Starter>
         {
             const CoreId coreId;
@@ -790,7 +792,7 @@ class AsyncEngine
                 }
             }
             virtual ~Starter() noexcept {}
-            virtual AsyncActor::ActorId onStart(AsyncEngine &, AsyncNode &, const AsyncActor::ActorId &,
+            virtual Actor::ActorId onStart(Engine &, AsyncNode &, const Actor::ActorId &,
                                                 bool) const = 0;
         };
         template <class _ActorInit> struct ActorStarter : Starter
@@ -831,13 +833,13 @@ class AsyncEngine
      * @throw std::bad_alloc
      * @throw ? Any exception thrown by actors' construction during start-sequence execution.
      */
-    AsyncEngine(const StartSequence &startSequence);
+    Engine(const StartSequence &startSequence);
     /**
      * @brief Default destructor
      * @attention When engine's destruction is called, the engine enters shutdown-mode.
      * All existing actors are marked for destruction, and no new actor can be created.
      */
-    ~AsyncEngine() noexcept;
+    ~Engine() noexcept;
 
     /**
      * @brief Check if the linked Tredzone library is compatible
@@ -867,11 +869,6 @@ class AsyncEngine
         if (!TREDZONE_SDK_IS_DEBUG_RELEASE_COMPATIBLE(isNDEBUG))
         {
             throw RuntimeCompatibilityException(RuntimeCompatibilityException::E_DEBUG_RELEASE);
-        }
-        // check engine version compatibility
-        if (!TREDZONE_SDK_COMPATIBLE(SDK_COMPATIBILITY_VERSION, SDK_PATCH_VERSION))
-        {
-            throw RuntimeCompatibilityException(RuntimeCompatibilityException::E_ENGINE_VERSION);
         }
     }
     /**
@@ -923,12 +920,12 @@ class AsyncEngine
      * @throw ? Any other exception possibly thrown depending on _Actor (the template generic type)
      * constructor call.
      */
-    template <class _Actor> inline AsyncActor::ActorId newCore(CoreId, bool isRedZone);
+    template <class _Actor> inline Actor::ActorId newCore(CoreId, bool isRedZone);
     /**
      * @see newCore(CoreId, bool)
      */
     template <class _Actor, class _ActorInit>
-    inline AsyncActor::ActorId newCore(CoreId, bool isRedZone, const _ActorInit &);
+    inline Actor::ActorId newCore(CoreId, bool isRedZone, const _ActorInit &);
 
 #ifndef NDEBUG
     /**
@@ -942,16 +939,16 @@ class AsyncEngine
 #endif
 
   private:
-    friend class AsyncActor;
+    friend class Actor;
     friend class AsyncEngineToEngineConnector;
     friend class AsyncEngineEventLoop;
     struct NewCoreStarter
     {
         virtual ~NewCoreStarter() noexcept {}
-        virtual AsyncActor::ActorId start(AsyncNode &) = 0;
+        virtual Actor::ActorId start(AsyncNode &) = 0;
     };
     template <class _Actor, class _ActorInit> class ServiceActorWrapper;
-    struct ServiceDestroyEvent : AsyncActor::Event
+    struct ServiceDestroyEvent : Actor::Event
     {
     };
     class ServiceSingletonActor;
@@ -969,10 +966,10 @@ class AsyncEngine
     ServiceIndex serviceIndex;
     AsyncEngineCustomCoreActorFactory &customCoreActorFactory;
     AsyncEngineCustomEventLoopFactory &customEventLoopFactory;
-    static ThreadLocalStorage<AsyncEngine *> currentEngineTLS;
+    static ThreadLocalStorage<Engine *> currentEngineTLS;
     char cacheLineTrailerPadding[CACHE_LINE_SIZE - 1];
 
-    inline static AsyncEngine &getEngine() noexcept
+    inline static Engine &getEngine() noexcept
     {
         assert(currentEngineTLS.get() != 0);
         return *currentEngineTLS.get();
@@ -980,23 +977,23 @@ class AsyncEngine
     void start(const StartSequence &); // throw (std::bad_alloc, ...)
     void finish() noexcept;
     static void threadStartHook(void *);
-    AsyncActor::ActorId newCore(CoreId, bool isRedZone,
+    Actor::ActorId newCore(CoreId, bool isRedZone,
                                 NewCoreStarter &); // throw (std::bad_alloc, CoreInUseException, ...)
 };
 
-class AsyncEngine::ServiceSingletonActor : public AsyncActor
+class Engine::ServiceSingletonActor : public Actor
 {
   public:
-    typedef std::list<AsyncActor *, Allocator<AsyncActor *>> ServiceActorList;
+    typedef std::list<Actor *, Allocator<Actor *>> ServiceActorList;
 
     inline ServiceSingletonActor() noexcept : serviceActorList(getAllocator()), isServiceDestroyTimeFlag(true) {}
     virtual ~ServiceSingletonActor() noexcept { assert(serviceActorList.empty()); }
-    inline void registerServiceActor(AsyncActor &actor)
+    inline void registerServiceActor(Actor &actor)
     {
         serviceActorList.remove(&actor);
         serviceActorList.push_back(&actor);
     }
-    inline void unregisterServiceActor(AsyncActor &actor) noexcept { serviceActorList.remove(&actor); }
+    inline void unregisterServiceActor(Actor &actor) noexcept { serviceActorList.remove(&actor); }
     inline bool isServiceDestroyTime() noexcept { return isServiceDestroyTimeFlag; }
     const ServiceActorList &getServiceActorList() const noexcept { return serviceActorList; }
 
@@ -1017,14 +1014,14 @@ class AsyncEngine::ServiceSingletonActor : public AsyncActor
 };
 
 template <class _Actor, class _ActorInit>
-class AsyncEngine::ServiceActorWrapper : virtual public AsynActorBase, public _Actor
+class Engine::ServiceActorWrapper : virtual public ActorBase, public _Actor
 {
   public:
     inline ServiceActorWrapper(AsyncNode &pasyncNode, const _ActorInit &actorInit,
-                               const AsyncActor::ActorId &ppreviousServiceDestroyActorId, bool plastServiceFlag)
-        : AsynActorBase(&pasyncNode), _Actor(actorInit),
-          serviceSingletonActor(static_cast<AsyncActor *>(this)->newReferencedSingletonActor<ServiceSingletonActor>()),
-          destroyEventActor(static_cast<AsyncActor *>(this)->newReferencedActor<DestroyEventActor>(
+                               const Actor::ActorId &ppreviousServiceDestroyActorId, bool plastServiceFlag)
+        : ActorBase(&pasyncNode), _Actor(actorInit),
+          serviceSingletonActor(static_cast<Actor *>(this)->newReferencedSingletonActor<ServiceSingletonActor>()),
+          destroyEventActor(static_cast<Actor *>(this)->newReferencedActor<DestroyEventActor>(
               std::make_pair(this, &ppreviousServiceDestroyActorId))),
           lastServiceFlag(plastServiceFlag)
     {
@@ -1038,27 +1035,27 @@ class AsyncEngine::ServiceActorWrapper : virtual public AsynActorBase, public _A
     }
     inline void operator delete(void *p) noexcept
     {
-        AsyncActor::Allocator<ServiceActorWrapper>(
-            AsyncActor::AllocatorBase(*static_cast<ServiceActorWrapper *>(p)->AsyncActor::asyncNode))
+        Actor::Allocator<ServiceActorWrapper>(
+            Actor::AllocatorBase(*static_cast<ServiceActorWrapper *>(p)->Actor::asyncNode))
             .deallocate(static_cast<ServiceActorWrapper *>(p), 1);
     }
     inline void operator delete(void *, void *p) noexcept
     {
-        AsyncActor::Allocator<ServiceActorWrapper>(
-            AsyncActor::AllocatorBase(*static_cast<ServiceActorWrapper *>(p)->AsyncActor::asyncNode))
+        Actor::Allocator<ServiceActorWrapper>(
+            Actor::AllocatorBase(*static_cast<ServiceActorWrapper *>(p)->Actor::asyncNode))
             .deallocate(static_cast<ServiceActorWrapper *>(p), 1);
     }
 
   private:
     friend class StartSequence;
-    struct DestroyEventActor : AsyncActor
+    struct DestroyEventActor : Actor
     {
         ServiceActorWrapper *serviceActor;
-        const AsyncActor::ActorId previousServiceDestroyActorId;
+        const Actor::ActorId previousServiceDestroyActorId;
         /**
          * throw (std::bad_alloc)
          */
-        DestroyEventActor(const std::pair<ServiceActorWrapper *, const AsyncActor::ActorId *> &init)
+        DestroyEventActor(const std::pair<ServiceActorWrapper *, const Actor::ActorId *> &init)
             : serviceActor(init.first), previousServiceDestroyActorId(*init.second)
         {
             registerEventHandler<ServiceDestroyEvent>(*this);
@@ -1080,7 +1077,7 @@ class AsyncEngine::ServiceActorWrapper : virtual public AsynActorBase, public _A
                 try
                 {
                     Event::Pipe(*this, previousServiceDestroyActorId).push<ServiceDestroyEvent>();
-                    AsyncActor::onDestroyRequest();
+                    Actor::onDestroyRequest();
                 }
                 catch (std::bad_alloc &)
                 {
@@ -1089,16 +1086,16 @@ class AsyncEngine::ServiceActorWrapper : virtual public AsynActorBase, public _A
             }
             else
             {
-                AsyncActor::onDestroyRequest();
+                Actor::onDestroyRequest();
             }
         }
     };
 
-    AsyncActor::ActorReference<ServiceSingletonActor> serviceSingletonActor;
-    AsyncActor::ActorReference<DestroyEventActor> destroyEventActor;
+    Actor::ActorReference<ServiceSingletonActor> serviceSingletonActor;
+    Actor::ActorReference<DestroyEventActor> destroyEventActor;
     bool lastServiceFlag;
 
-    const AsyncActor::ActorId &getDestroyEventActorId() const noexcept { return destroyEventActor->getActorId(); }
+    const Actor::ActorId &getDestroyEventActorId() const noexcept { return destroyEventActor->getActorId(); }
     virtual void onDestroyRequest() noexcept
     {
         if (serviceSingletonActor->isServiceDestroyTime() && lastServiceFlag)
@@ -1113,54 +1110,78 @@ template <class _Service> struct AsyncEngineStartSequenceServiceTraits
     static inline bool isAnonymous() noexcept { return false; }
 };
 
-template <> struct AsyncEngineStartSequenceServiceTraits<AsyncEngine::StartSequence::AnonymousService>
+template <> struct AsyncEngineStartSequenceServiceTraits<Engine::StartSequence::AnonymousService>
 {
     static inline bool isAnonymous() noexcept { return true; }
 };
 
-template <class _Actor> AsyncActor::ActorId AsyncEngine::newCore(CoreId coreId, bool isRedZone)
+template <class _Actor> Actor::ActorId Engine::newCore(CoreId coreId, bool isRedZone)
 {
     struct NewActorCoreStarter : NewCoreStarter
     {
-        virtual AsyncActor::ActorId start(AsyncNode &node) { return AsyncActor::newActor<_Actor>(node).getActorId(); }
-    };
+		virtual Actor::ActorId start(AsyncNode& node) {
+		_Actor& actor = Actor::newActor<_Actor>(node);
+#ifdef DEBUG_REF
+    std::ostringstream stm;
+    stm << "NewActorCoreStarter::start;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
+	Actor::appendRefLog(&node,stm.str());
+#endif
+			return actor.getActorId();
+		}
+	};
     NewActorCoreStarter newActorCoreStarter;
     return newCore(coreId, isRedZone, newActorCoreStarter);
 }
 
 template <class _Actor, class _ActorInit>
-AsyncActor::ActorId AsyncEngine::newCore(CoreId coreId, bool isRedZone, const _ActorInit &actorInit)
+Actor::ActorId Engine::newCore(CoreId coreId, bool isRedZone, const _ActorInit &actorInit)
 {
     struct NewActorCoreStarter : NewCoreStarter
     {
         const _ActorInit &actorInit;
         inline NewActorCoreStarter(const _ActorInit &pactorInit) noexcept : actorInit(pactorInit) {}
-        virtual AsyncActor::ActorId start(AsyncNode &node)
+        virtual Actor::ActorId start(AsyncNode &node)
         {
-            return AsyncActor::newActor<_Actor>(node, actorInit).getActorId();
-        }
+			_Actor& actor = Actor::newActor<_Actor>(node, actorInit);
+            
+            #ifdef DEBUG_REF
+                std::ostringstream stm;
+                stm << "NewActorCoreStarter::start;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
+                Actor::appendRefLog(&node,stm.str());
+            #endif
+            
+			return actor.getActorId();
+		}
     };
     NewActorCoreStarter newActorCoreStarter(actorInit);
     return newCore(coreId, isRedZone, newActorCoreStarter);
 }
 
-template <class _Actor> void AsyncEngine::StartSequence::addActor(CoreId coreId)
+template <class _Actor> void Engine::StartSequence::addActor(CoreId coreId)
 {
     struct AddActorStarter : Starter
     {
         AddActorStarter(CoreId coreId) : Starter(coreId, false) {}
         virtual ~AddActorStarter() noexcept {}
-        virtual AsyncActor::ActorId onStart(AsyncEngine &, AsyncNode &node, const AsyncActor::ActorId &, bool) const
+        virtual Actor::ActorId onStart(Engine &, AsyncNode &node, const Actor::ActorId &, bool) const
         {
-            AsyncActor::newActor<_Actor>(node);
-            return AsyncActor::ActorId();
-        }
+			_Actor  &actor = Actor::newActor<_Actor>(node);
+            (void)actor;
+            
+            #ifdef DEBUG_REF
+                std::ostringstream stm;
+                stm << "AddActorStarter::start;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
+                Actor::appendRefLog(&node,stm.str());
+            #endif
+			
+            return Actor::ActorId();
+		}
     };
     starterChain.push_back(new AddActorStarter(coreId));
 }
 
 template <class _Actor, class _ActorInit>
-void AsyncEngine::StartSequence::addActor(CoreId coreId, const _ActorInit &actorInit)
+void Engine::StartSequence::addActor(CoreId coreId, const _ActorInit &actorInit)
 {
     struct AddActorStarter : ActorStarter<_ActorInit>
     {
@@ -1169,22 +1190,31 @@ void AsyncEngine::StartSequence::addActor(CoreId coreId, const _ActorInit &actor
         {
         }
         virtual ~AddActorStarter() noexcept {}
-        virtual AsyncActor::ActorId onStart(AsyncEngine &, AsyncNode &node, const AsyncActor::ActorId &, bool) const
+        
+        virtual Actor::ActorId onStart(Engine&, AsyncNode& node, const Actor::ActorId&, bool) const
         {
-            AsyncActor::newActor<_Actor, _ActorInit>(node, this->actorInit);
-            return AsyncActor::ActorId();
-        }
+            _Actor  &actor = Actor::newActor<_Actor, _ActorInit>(node, this->actorInit);
+            (void)actor;
+            
+            #ifdef DEBUG_REF
+                std::ostringstream stm;
+                stm << "StartSequence::onStart;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
+                Actor::appendRefLog(&node,stm.str());
+            #endif
+            
+			return Actor::ActorId();
+		}
     };
     starterChain.push_back(new AddActorStarter(coreId, actorInit));
 }
 
-template <class _Service, class _Actor> void AsyncEngine::StartSequence::addServiceActor(CoreId coreId)
+template <class _Service, class _Actor> void Engine::StartSequence::addServiceActor(CoreId coreId)
 {
     addServiceActor<_Service, AddServiceActorWrapper<_Actor>>(coreId, 0);
 }
 
 template <class _Service, class _Actor, class _ActorInit>
-void AsyncEngine::StartSequence::addServiceActor(CoreId coreId, const _ActorInit &actorInit)
+void Engine::StartSequence::addServiceActor(CoreId coreId, const _ActorInit &actorInit)
 {
     struct AddServiceActorStarter : ActorStarter<_ActorInit>
     {
@@ -1193,12 +1223,12 @@ void AsyncEngine::StartSequence::addServiceActor(CoreId coreId, const _ActorInit
         {
         }
         virtual ~AddServiceActorStarter() noexcept {}
-        virtual AsyncActor::ActorId onStart(AsyncEngine &engine, AsyncNode &asyncNode,
-                                            const AsyncActor::ActorId &previousServiceDestroyActorId,
+        virtual Actor::ActorId onStart(Engine &engine, AsyncNode &asyncNode,
+                                            const Actor::ActorId &previousServiceDestroyActorId,
                                             bool isLastService) const
         {
             ServiceActorWrapper<_Actor, _ActorInit> &serviceActor = *new (
-                AsyncActor::Allocator<ServiceActorWrapper<_Actor, _ActorInit>>(AsyncActor::AllocatorBase(asyncNode))
+                Actor::Allocator<ServiceActorWrapper<_Actor, _ActorInit>>(Actor::AllocatorBase(asyncNode))
                     .allocate(1)) ServiceActorWrapper<_Actor, _ActorInit>(asyncNode, this->actorInit,
                                                                           previousServiceDestroyActorId, isLastService);
             if (AsyncEngineStartSequenceServiceTraits<_Service>::isAnonymous() == false)

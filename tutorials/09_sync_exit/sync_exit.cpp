@@ -112,7 +112,7 @@ int main()
     // add PingActor on CPU core #1
 	startSequence.addActor<PingActor>(1);
 
-	AsyncEngine	engine(startSequence);
+	Engine	engine(startSequence);
 	
     return 0;
 }

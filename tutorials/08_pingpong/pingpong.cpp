@@ -90,7 +90,7 @@ int main()
     // add PingActor on CPU core #1
 	startSequence.addActor<PingActor>(1);
 
-	AsyncEngine	engine(startSequence);
+	Engine	engine(startSequence);
 	
     // wait for 2 seconds (see tutorial #9 "sync_exit" for more)
 	sleep(2);

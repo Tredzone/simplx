@@ -54,6 +54,6 @@ Engine engine(startSequence);
 While using CMake to build largish projects is easier, here is the g++ command to build this small tutorial:
 
 ```bash
-g++ -std=c++11 -pthread -I ../../include/ ../../src/engine/actor.cpp ../../src/engine/e2econnector.cpp ../../src/engine/engine.cpp ../../src/engine/node.cpp ../../src/engine/linux/platform_gcc.cpp hello_actor.cpp -o hello_actor.bin
+g++ -std=c++11 -pthread -I ../../include/ ../../src/engine/actor.cpp ../../src/engine/e2econnector.cpp ../../src/engine/engine.cpp ../../src/engine/node.cpp ../../src/engine/e2e_stub.cpp ../../src/engine/RefMapper.cpp ../../src/engine/linux/platform_gcc.cpp hello_actor.cpp -o hello_actor.bin
 
 ```

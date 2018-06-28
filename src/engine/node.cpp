@@ -6,6 +6,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 
 #include "trz/engine/internal/node.h"
 
@@ -18,7 +19,7 @@ volatile bool AsyncNodeAllocator::debugActivateMemoryLeakBacktraceFlag = false;
 
 AsyncNodeBase::StaticShared AsyncNodeBase::staticShared;
 
-AsyncActor::EventTable::EventTable(void *pdeallocatePointer) noexcept : nodeActorId(0),
+Actor::EventTable::EventTable(void *pdeallocatePointer) noexcept : nodeActorId(0),
                                                                         asyncActor(0),
                                                                         lfEvent(0),
                                                                         undeliveredEvent(0),
@@ -29,7 +30,9 @@ AsyncActor::EventTable::EventTable(void *pdeallocatePointer) noexcept : nodeActo
     CRITICAL_ASSERT((uintptr_t) this % CACHE_LINE_SIZE == 0);
 }
 
-AsyncActor::EventTable::~EventTable() noexcept
+//---- DTOR --------------------------------------------------------------------
+
+    Actor::EventTable::~EventTable() noexcept
 {
     assert(nodeActorId == 0);
     assert(asyncActor == 0);
@@ -38,7 +41,7 @@ AsyncActor::EventTable::~EventTable() noexcept
     assert(undeliveredEventCount == 0);
 }
 
-void AsyncActor::EventTable::onUndeliveredEvent(const Event &event) const
+void Actor::EventTable::onUndeliveredEvent(const Event &event) const
 {
     if (undeliveredEvent != 0)
     {
@@ -55,7 +58,7 @@ void AsyncActor::EventTable::onUndeliveredEvent(const Event &event) const
     }
 }
 
-bool AsyncActor::EventTable::onLowFrequencyEvent(const Event &event, uint64_t &performanceCounter) const
+bool Actor::EventTable::onLowFrequencyEvent(const Event &event, uint64_t &performanceCounter) const
 {
     if (lfEvent == 0)
     {
@@ -74,7 +77,7 @@ bool AsyncActor::EventTable::onLowFrequencyEvent(const Event &event, uint64_t &p
     return (*lfEvent[i].staticEventHandler)(lfEvent[i].eventHandler, event);
 }
 
-size_t AsyncActor::EventTable::lfRegisteredEventArraySize(RegisteredEvent *registeredEvent) noexcept
+size_t Actor::EventTable::lfRegisteredEventArraySize(RegisteredEvent *registeredEvent) noexcept
 {
     size_t i = 0;
     for (; registeredEvent[i].eventId != MAX_EVENT_ID_COUNT; ++i)
@@ -84,40 +87,39 @@ size_t AsyncActor::EventTable::lfRegisteredEventArraySize(RegisteredEvent *regis
 }
 
 #ifndef NDEBUG
-bool AsyncActor::EventTable::onUnregisteredEvent(void *eventHandler, const Event &)
-{
-    assert(eventHandler == 0);
-    return false;
-}
-
-bool AsyncActor::EventTable::debugCheckUndeliveredEventCount() const noexcept
-{
-    size_t n = 0;
-    if (undeliveredEvent != 0)
+    bool Actor::EventTable::onUnregisteredEvent(void *eventHandler, const Event &)
     {
-        for (size_t i = 0; undeliveredEvent[i].eventId != MAX_EVENT_ID_COUNT; ++i)
+        assert(eventHandler == 0);
+        return false;
+    }
+
+    bool Actor::EventTable::debugCheckUndeliveredEventCount() const noexcept
+    {
+        size_t n = 0;
+        if (undeliveredEvent != 0)
         {
-            assert((undeliveredEvent[i].staticEventHandler != &onUnregisteredEvent &&
-                    undeliveredEvent[i].eventHandler != 0) ||
-                   (undeliveredEvent[i].staticEventHandler == &onUnregisteredEvent &&
-                    undeliveredEvent[i].eventHandler == 0));
-            if (undeliveredEvent[i].staticEventHandler != &onUnregisteredEvent)
+            for (size_t i = 0; undeliveredEvent[i].eventId != MAX_EVENT_ID_COUNT; ++i)
             {
-                ++n;
+                assert((undeliveredEvent[i].staticEventHandler != &onUnregisteredEvent &&
+                        undeliveredEvent[i].eventHandler != 0) ||
+                       (undeliveredEvent[i].staticEventHandler == &onUnregisteredEvent &&
+                        undeliveredEvent[i].eventHandler == 0));
+                if (undeliveredEvent[i].staticEventHandler != &onUnregisteredEvent)
+                {
+                    ++n;
+                }
             }
         }
+        return n == undeliveredEventCount;
     }
-    return n == undeliveredEventCount;
-}
 #else
-bool AsyncActor::EventTable::onUnregisteredEvent(void *, const Event &) { return false; }
+    bool Actor::EventTable::onUnregisteredEvent(void *, const Event &) { return false; }
 #endif
 
-/**
- * throw (std::bad_alloc)
- */
-AsyncNodesHandle::AsyncNodesHandle(const std::pair<size_t, const CoreSet *> &init)
-    : size(init.second->size()), eventAllocatorPageSize(init.first), activeNodeHandles(size, false), nodeHandles(size)
+//---- Nodes Handle CTOR -------------------------------------------------------
+
+    AsyncNodesHandle::AsyncNodesHandle(const std::pair<size_t, const CoreSet *> &init)
+        : size(init.second->size()), eventAllocatorPageSize(init.first), activeNodeHandles(size, false), nodeHandles(size)
 {
     cpuset_type currentThreadAffinity = threadGetAffinity();
     for (size_t i = 0; i < size; ++i)
@@ -163,16 +165,16 @@ void AsyncNodesHandle::ReaderSharedHandle::init(WriterSharedHandle &writerShared
 }
 
 void AsyncNodesHandle::ReaderSharedHandle::dispatchUnreachableNodes(
-    AsyncActor::OnUnreachableChain &asyncActorOnUnreachableChain,
+    Actor::OnUnreachableChain &asyncActorOnUnreachableChain,
     Shared::UnreachableNodeConnectionChain &sharedUnreachableNodeConnectionChain, NodeId writerNodeId,
     AsyncExceptionHandler &asyncExceptionHandler) noexcept
 {
     assert(!asyncActorOnUnreachableChain.empty());
     assert(!sharedUnreachableNodeConnectionChain.empty());
-    AsyncActor::OnUnreachableChain localAsyncActorOnUnreachableChain;
+    Actor::OnUnreachableChain localAsyncActorOnUnreachableChain;
     localAsyncActorOnUnreachableChain.swap(asyncActorOnUnreachableChain);
     assert(asyncActorOnUnreachableChain.empty());
-    for (AsyncActor::OnUnreachableChain::iterator i = localAsyncActorOnUnreachableChain.begin(),
+    for (Actor::OnUnreachableChain::iterator i = localAsyncActorOnUnreachableChain.begin(),
                                                   endi = localAsyncActorOnUnreachableChain.end();
          i != endi; ++i)
     {
@@ -181,7 +183,7 @@ void AsyncNodesHandle::ReaderSharedHandle::dispatchUnreachableNodes(
     }
     while (!localAsyncActorOnUnreachableChain.empty())
     {
-        AsyncActor *asyncActor = localAsyncActorOnUnreachableChain.pop_front();
+        Actor *asyncActor = localAsyncActorOnUnreachableChain.pop_front();
         assert(asyncActor->eventTable.undeliveredEventCount > 0);
         assert(asyncActor->onUnreachableChain == &localAsyncActorOnUnreachableChain);
         (asyncActor->onUnreachableChain = &asyncActorOnUnreachableChain)->push_back(asyncActor);
@@ -191,28 +193,27 @@ void AsyncNodesHandle::ReaderSharedHandle::dispatchUnreachableNodes(
         {
             try
             {
-                asyncActor->onUnreachable(AsyncActor::ActorId::RouteIdComparable(writerNodeId, i->nodeConnectionId));
+                asyncActor->onUnreachable(Actor::ActorId::RouteIdComparable(writerNodeId, i->nodeConnectionId));
             }
             catch (std::exception &e)
             {
                 asyncExceptionHandler.onUnreachableExceptionSynchronized(
                     *asyncActor, typeid(*asyncActor),
-                    AsyncActor::ActorId::RouteIdComparable(writerNodeId, i->nodeConnectionId), e.what());
+                    Actor::ActorId::RouteIdComparable(writerNodeId, i->nodeConnectionId), e.what());
             }
             catch (...)
             {
                 asyncExceptionHandler.onUnreachableExceptionSynchronized(
                     *asyncActor, typeid(*asyncActor),
-                    AsyncActor::ActorId::RouteIdComparable(writerNodeId, i->nodeConnectionId), "unknown exception");
+                    Actor::ActorId::RouteIdComparable(writerNodeId, i->nodeConnectionId), "unknown exception");
             }
         }
     }
 }
 
-/**
- * throw (std::bad_alloc)
- */
-AsyncNodesHandle::WriterSharedHandle::WriterSharedHandle(size_t eventAllocatorPageSize) : cl2(eventAllocatorPageSize)
+//---- WriterSharedHandle CTOR -------------------------------------------------
+
+    AsyncNodesHandle::WriterSharedHandle::WriterSharedHandle(size_t eventAllocatorPageSize) : cl2(eventAllocatorPageSize)
 {
 
     CRITICAL_ASSERT((uintptr_t)&cl1 % CACHE_LINE_SIZE == 0);
@@ -239,7 +240,7 @@ AsyncNodesHandle::Shared::ReadWriteLocked::undeliveredEvent(const AsyncNodesHand
 {
     assert(readerNodeHandle != 0);
     assert(readerNodeHandle->node != 0);
-    AsyncActor::Event &event = *ievent;
+    Actor::Event &event = *ievent;
     EventChain::iterator ret = eventChain.erase(ievent);
     undeliveredEventChain.push_back(&event);
     AsyncNode &node = *readerNodeHandle->node;
@@ -343,7 +344,7 @@ void AsyncNodesHandle::WriterSharedHandle::writeDispatchAndClearUndeliveredEvent
     }
 }
 
-void AsyncNodesHandle::WriterSharedHandle::onUndeliveredEvent(const AsyncActor::Event &event) noexcept
+void AsyncNodesHandle::WriterSharedHandle::onUndeliveredEvent(const Actor::Event &event) noexcept
 {
     assert(cl1.writerNodeHandle != 0);
     assert(cl1.writerNodeHandle->node != 0);
@@ -352,8 +353,8 @@ void AsyncNodesHandle::WriterSharedHandle::onUndeliveredEvent(const AsyncActor::
         assert(event.getSourceActorId().getRouteId() == event.getRouteId());
         assert(event.getSourceActorId().getRouteId().nodeId == cl1.writerNodeHandle->node->id);
         assert(event.getSourceActorId().getRouteId().nodeId == cl2.shared.readWriteLocked.writerNodeId);
-        const AsyncActor::ActorId::RouteId &routeId = event.getRouteId();
-        const AsyncActor::NodeConnection *nodeConnection = routeId.nodeConnection;
+        const Actor::ActorId::RouteId &routeId = event.getRouteId();
+        const Actor::NodeConnection *nodeConnection = routeId.nodeConnection;
         assert(nodeConnection != 0);
         if (routeId.getNodeConnectionId() == nodeConnection->nodeConnectionId)
         {
@@ -381,15 +382,15 @@ void AsyncNodesHandle::WriterSharedHandle::onUndeliveredEvent(const AsyncActor::
     }
 }
 
-void AsyncNodesHandle::WriterSharedHandle::onUndeliveredEventToSourceActor(const AsyncActor::Event &event) noexcept
+void AsyncNodesHandle::WriterSharedHandle::onUndeliveredEventToSourceActor(const Actor::Event &event) noexcept
 {
     assert(cl1.writerNodeHandle != 0);
     assert(cl1.writerNodeHandle->node != 0);
     assert(!event.isRouteToSource());
     assert(event.getSourceInProcessActorId().nodeId == cl1.writerNodeHandle->node->id);
     assert(event.getSourceInProcessActorId().nodeId == cl2.shared.readWriteLocked.writerNodeId);
-    const AsyncActor::InProcessActorId &eventSourceActorId = event.getSourceInProcessActorId();
-    const AsyncActor::EventTable &eventTable = *eventSourceActorId.eventTable;
+    const Actor::InProcessActorId &eventSourceActorId = event.getSourceInProcessActorId();
+    const Actor::EventTable &eventTable = *eventSourceActorId.eventTable;
     if (eventSourceActorId.getNodeActorId() == eventTable.nodeActorId)
     {
         try
@@ -412,8 +413,8 @@ void AsyncNodesHandle::WriterSharedHandle::onUndeliveredEventToSourceActor(const
     }
 }
 
-void AsyncExceptionHandler::onEventException(AsyncActor *, const std::type_info &asyncActorTypeInfo,
-                                             const char *onXXX_FunctionName, const AsyncActor::Event &event,
+void AsyncExceptionHandler::onEventException(Actor *, const std::type_info &asyncActorTypeInfo,
+                                             const char *onXXX_FunctionName, const Actor::Event &event,
                                              const char *whatException) noexcept
 {
     try
@@ -439,8 +440,8 @@ void AsyncExceptionHandler::onEventException(AsyncActor *, const std::type_info 
 #endif
 }
 
-void AsyncExceptionHandler::onUnreachableException(AsyncActor &, const std::type_info &asyncActorTypeInfo,
-                                                   const AsyncActor::ActorId::RouteIdComparable &routeIdComparable,
+void AsyncExceptionHandler::onUnreachableException(Actor &, const std::type_info &asyncActorTypeInfo,
+                                                   const Actor::ActorId::RouteIdComparable &routeIdComparable,
                                                    const char *whatException) noexcept
 {
     try
@@ -468,9 +469,9 @@ void AsyncExceptionHandler::onUnreachableException(AsyncActor &, const std::type
 #endif
 }
 
-void AsyncExceptionHandler::onEventExceptionSynchronized(AsyncActor *asyncActor,
+void AsyncExceptionHandler::onEventExceptionSynchronized(Actor *asyncActor,
                                                          const std::type_info &asyncActorTypeInfo,
-                                                         const char *onXXX_FunctionName, const AsyncActor::Event &event,
+                                                         const char *onXXX_FunctionName, const Actor::Event &event,
                                                          const char *whatException) noexcept
 {
     Mutex::Lock lock(mutex);
@@ -478,8 +479,8 @@ void AsyncExceptionHandler::onEventExceptionSynchronized(AsyncActor *asyncActor,
 }
 
 void AsyncExceptionHandler::onUnreachableExceptionSynchronized(
-    AsyncActor &asyncActor, const std::type_info &asyncActorTypeInfo,
-    const AsyncActor::ActorId::RouteIdComparable &routeIdComparable, const char *whatException) noexcept
+    Actor &asyncActor, const std::type_info &asyncActorTypeInfo,
+    const Actor::ActorId::RouteIdComparable &routeIdComparable, const char *whatException) noexcept
 {
     Mutex::Lock lock(mutex);
     onUnreachableException(asyncActor, asyncActorTypeInfo, routeIdComparable, whatException);
@@ -522,11 +523,11 @@ void AsyncNodeManager::shutdown() noexcept
 AsyncNodeBase::AsyncNodeBase(AsyncNodeManager &pnodeManager)
     : // throw (std::bad_alloc)
       singletonActorIndex(StaticShared::SINGLETON_ACTOR_INDEX_SIZE, SingletonActorIndexEntry(),
-                          AsyncActor::AllocatorBase(nodeAllocator)),
+                          Actor::AllocatorBase(nodeAllocator)),
       actorCount(0), freeEventTable(0), nodeManager(pnodeManager), lastNodeConnectionId(0),
       eventAllocatorPageSize(nodeManager.getEventAllocatorPageSize()), loopUsagePerformanceCounterIncrement(0)
 {
-    assert(std::numeric_limits<AsyncActor::SingletonActorIndex>::max() >= StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
+    assert(std::numeric_limits<Actor::SingletonActorIndex>::max() >= StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
 }
 
 AsyncNodeBase::~AsyncNodeBase() noexcept
@@ -549,30 +550,30 @@ AsyncNodeBase::~AsyncNodeBase() noexcept
     {
         asyncActorPerformanceNeutralCallbackChain.front()->unregister();
     }
-    for (AsyncActor::EventTable *i = freeEventTable; i != 0;)
+    for (Actor::EventTable *i = freeEventTable; i != 0;)
     {
-        AsyncActor::EventTable *tmp = i;
+        Actor::EventTable *tmp = i;
         i = i->nextUnused;
         tmp->~EventTable();
-        nodeAllocator.deallocate(sizeof(AsyncActor::EventTable) + CACHE_LINE_SIZE - 1, tmp->deallocatePointer);
+        nodeAllocator.deallocate(sizeof(Actor::EventTable) + CACHE_LINE_SIZE - 1, tmp->deallocatePointer);
     }
     while (!freeNodeConnectionChain.empty())
     {
-        nodeAllocator.deallocate(sizeof(AsyncActor::NodeConnection), freeNodeConnectionChain.pop_front());
+        nodeAllocator.deallocate(sizeof(Actor::NodeConnection), freeNodeConnectionChain.pop_front());
     }
 }
 
-AsyncNodeBase::StaticShared::AbsoluteEventIds::~AbsoluteEventIds() noexcept
+    AsyncNodeBase::StaticShared::AbsoluteEventIds::~AbsoluteEventIds() noexcept
 {
     assert(eventNameIdMap.empty());
     assert(eventIdNameMap.empty());
 }
 
-void AsyncNodeBase::StaticShared::AbsoluteEventIds::addEventId(AsyncActor::EventId eventId, const char *absoluteEventId)
+void AsyncNodeBase::StaticShared::AbsoluteEventIds::addEventId(Actor::EventId eventId, const char *absoluteEventId)
 {
     if (eventNameIdMap.find(absoluteEventId) != eventNameIdMap.end())
     {
-        throw AsyncActor::Event::DuplicateAbsoluteEventIdException();
+        throw Actor::Event::DuplicateAbsoluteEventIdException();
     }
     std::pair<EventIdNameMap::iterator, bool> retInsert =
         eventIdNameMap.insert(EventIdNameMap::value_type(eventId, absoluteEventId));
@@ -594,7 +595,7 @@ void AsyncNodeBase::StaticShared::AbsoluteEventIds::addEventId(AsyncActor::Event
     TRZ_DEBUG(debugCheckMaps();)
 }
 
-void AsyncNodeBase::StaticShared::AbsoluteEventIds::removeEventId(AsyncActor::EventId eventId) noexcept
+void AsyncNodeBase::StaticShared::AbsoluteEventIds::removeEventId(Actor::EventId eventId) noexcept
 {
     EventIdNameMap::iterator ieventIdNameMap = eventIdNameMap.find(eventId);
     if (ieventIdNameMap != eventIdNameMap.end())
@@ -613,14 +614,14 @@ void AsyncNodeBase::StaticShared::AbsoluteEventIds::removeEventId(AsyncActor::Ev
     TRZ_DEBUG(debugCheckMaps();)
 }
 
-std::pair<bool, AsyncActor::EventId>
+std::pair<bool, Actor::EventId>
 AsyncNodeBase::StaticShared::AbsoluteEventIds::findEventId(const char *absoluteEventId) const noexcept
 {
     TRZ_DEBUG(debugCheckMaps();)
     EventNameIdMap::const_iterator ieventNameIdMap = eventNameIdMap.find(absoluteEventId);
     if (ieventNameIdMap == eventNameIdMap.end())
     {
-        return std::make_pair(false, AsyncActor::MAX_EVENT_ID_COUNT);
+        return std::make_pair(false, Actor::MAX_EVENT_ID_COUNT);
     }
     else
     {
@@ -645,17 +646,17 @@ void AsyncNodeBase::StaticShared::AbsoluteEventIds::debugCheckMaps() const
 /**
  * throw (std::bad_alloc, UndefinedCoreException, CoreInUseException)
  */
-AsyncNode::AsyncNode(const Init &init)
+    AsyncNode::AsyncNode(const Init &init)
 
     try : AsyncNodeBase(init.nodeManager),
-          AsyncNodeManager
-    ::Node(init.nodeManager, init.nodeManager.getCoreSet().index(init.coreId)),
+          AsyncNodeManager::Node(init.nodeManager, init.nodeManager.getCoreSet().index(init.coreId)),
         eventLoop(init.customEventLoopFactory.newEventLoop()),
-        corePerformanceCounters(AsyncActor::AllocatorBase(*this), getCoreSet().size())
+        corePerformanceCounters(Actor::AllocatorBase(*this), getCoreSet().size()),
+        
 #ifndef NDEBUG
-            ,
-        debugSynchronizePostBarrierFlag(false)
+        debugSynchronizePostBarrierFlag(false),
 #endif
+        m_RefMapperPtr(IRefMapper::Create()), m_RefMapper(*m_RefMapperPtr)
     {
         assert(nodeHandle.node == 0);
         nodeHandle.node = this;
@@ -665,7 +666,7 @@ AsyncNode::AsyncNode(const Init &init)
 #endif
         nodeHandle.stopFlag = false;
         eventLoop->init(*this);
-        for (AsyncActor::NodeId nodeId = 0; nodeId < getCoreSet().size(); ++nodeId)
+        for (Actor::NodeId nodeId = 0; nodeId < getCoreSet().size(); ++nodeId)
         {
             assert(corePerformanceCounters.writtenSizePointerVector.size() == nodeId);
             corePerformanceCounters.writtenSizePointerVector.push_back(
@@ -677,33 +678,45 @@ catch (AsyncNodeManager::NodeInUseException &)
     throw CoreInUseException();
 }
 
-AsyncNode::~AsyncNode() noexcept
+//---- DTOR --------------------------------------------------------------------
+
+    AsyncNode::~AsyncNode() noexcept
 {
     assert(!debugSynchronizePostBarrierFlag);
     nodeHandle.getWriterSharedHandle(id).cl2.shared.writeCache.freeEventAllocatorPageChain.push_back(
         usedlocalEventAllocatorPageChain);
+        
+    #ifdef DEBUG_REF
+        std::ofstream refLogFile;
+        
+        std::ostringstream stm;
+        stm << "reflogfile." << pthread_self() << ".log";
+        refLogFile.open(stm.str().c_str(),std::fstream::out | std::fstream::trunc);
+        refLogFile << dbgRefLogStr;
+        refLogFile.close();
+    #endif
 }
 
 /**
- * throw (std::bad_alloc, AsyncActor::ShutdownException)
+ * throw (std::bad_alloc, Actor::ShutdownException)
  */
-AsyncActor::EventTable &AsyncNode::retainEventTable(AsyncActor &asyncActor)
+Actor::EventTable &AsyncNode::retainEventTable(Actor &asyncActor)
 {
     if (nodeHandle.shutdownFlag || nodeHandle.stopFlag)
     {
-        throw AsyncActor::ShutdownException(nodeHandle.shutdownFlag);
+        throw Actor::ShutdownException(nodeHandle.shutdownFlag);
     }
     if (nodeHandle.nextHanlerId == 0)
     {
         throw std::bad_alloc();
     }
-    AsyncActor::EventTable *ret;
+    Actor::EventTable *ret;
     if (freeEventTable == 0)
     {
         char *deallocatePointer =
-            static_cast<char *>(nodeAllocator.allocate(sizeof(AsyncActor::EventTable) + CACHE_LINE_SIZE - 1));
+            static_cast<char *>(nodeAllocator.allocate(sizeof(Actor::EventTable) + CACHE_LINE_SIZE - 1));
         ret = new (CacheLineAlignedBuffer::cacheLineAlignedPointer(deallocatePointer))
-            AsyncActor::EventTable(deallocatePointer);
+            Actor::EventTable(deallocatePointer);
     }
     else
     {
@@ -716,28 +729,28 @@ AsyncActor::EventTable &AsyncNode::retainEventTable(AsyncActor &asyncActor)
     ret->nodeActorId = nodeHandle.nextHanlerId;
     ret->asyncActor = &asyncActor;
     ++nodeHandle.nextHanlerId;
-    for (int i = 0; i < AsyncActor::EventTable::HIGH_FREQUENCY_CALLBACK_ARRAY_SIZE; ++i)
+    for (int i = 0; i < Actor::EventTable::HIGH_FREQUENCY_CALLBACK_ARRAY_SIZE; ++i)
     {
-        ret->hfEvent[i].eventId = AsyncActor::MAX_EVENT_ID_COUNT;
+        ret->hfEvent[i].eventId = Actor::MAX_EVENT_ID_COUNT;
     }
     return *ret;
 }
 
-void AsyncNode::releaseEventTable(AsyncActor::EventTable &eventTable) noexcept
+void AsyncNode::releaseEventTable(Actor::EventTable &eventTable) noexcept
 {
     eventTable.nodeActorId = 0;
     eventTable.asyncActor = 0;
     if (eventTable.lfEvent != 0)
     {
-        nodeAllocator.deallocate(AsyncActor::EventTable::lfRegisteredEventArraySize(eventTable.lfEvent) *
-                                     sizeof(AsyncActor::EventTable::RegisteredEvent),
+        nodeAllocator.deallocate(Actor::EventTable::lfRegisteredEventArraySize(eventTable.lfEvent) *
+                                     sizeof(Actor::EventTable::RegisteredEvent),
                                  eventTable.lfEvent);
         eventTable.lfEvent = 0;
     }
     if (eventTable.undeliveredEvent != 0)
     {
-        nodeAllocator.deallocate(AsyncActor::EventTable::lfRegisteredEventArraySize(eventTable.undeliveredEvent) *
-                                     sizeof(AsyncActor::EventTable::RegisteredEvent),
+        nodeAllocator.deallocate(Actor::EventTable::lfRegisteredEventArraySize(eventTable.undeliveredEvent) *
+                                     sizeof(Actor::EventTable::RegisteredEvent),
                                  eventTable.undeliveredEvent);
         eventTable.undeliveredEvent = 0;
     }
@@ -750,7 +763,7 @@ void AsyncNode::destroyAsyncActors() noexcept
 {
     for (AsyncActorChain::iterator i = asyncActorChain.begin(), endi = asyncActorChain.end(); i != endi;)
     {
-        AsyncActor &actor = *i;
+        Actor &actor = *i;
         ++i;
         actor.requestDestroy();
     }
@@ -761,7 +774,8 @@ void AsyncNode::destroyAsyncActors() noexcept
  */
 AsyncNode::Thread::Thread(CoreId pcoreId, bool predZoneFlag, const ThreadRealTimeParam &predZoneParam,
                           size_t stackSizeBytes, StartHook pstartHook, void *pstartHookArg, StopHook pstopHook)
-    : coreId(pcoreId), redZoneFlag(predZoneFlag), redZoneParam(predZoneParam), inThreadFlag(false), runFlag(false),
+    : coreId(pcoreId), redZoneFlag(predZoneFlag), redZoneParam(predZoneParam),
+      inThreadFlag(false), runFlag(false),
       inThreadExceptionFlag(false), startHook(pstartHook), startHookArg(pstartHookArg), stopHook(pstopHook),
       inThreadNode(0)
 {

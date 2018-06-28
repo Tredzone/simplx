@@ -42,7 +42,8 @@ template <class _Item, unsigned _CHAIN_COUNT> struct MultiDoubleChainItemAccesso
     }
 };
 
-template <class _Item> class MultiDoubleChainLink<_Item, 1u>
+template <class _Item>
+class MultiDoubleChainLink<_Item, 1u>
 {
   public:
     template <unsigned _CHAIN_ID = 0u, class _ItemAccessor = MultiDoubleChainItemAccessor<_Item, 1u>>
@@ -51,6 +52,7 @@ template <class _Item> class MultiDoubleChainLink<_Item, 1u>
     };
 
 #ifndef NDEBUG
+    // infinite link?
     MultiDoubleChainLink() : previous(this), next(this) {}
     MultiDoubleChainLink(const MultiDoubleChainLink &) : previous(this), next(this) {}
 #endif
@@ -147,7 +149,8 @@ template <class _Item> class MultiDoubleChainLinkAccessor<_Item, 2u, 1u>
     }
 };
 
-template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAccessor> class MultiDoubleChain
+template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAccessor>
+class MultiDoubleChain
 {
   public:
     typedef _Item value_type;
@@ -192,8 +195,8 @@ template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAcc
     MultiDoubleChainLink<_Item, _CHAIN_COUNT> *head;
     MultiDoubleChainLink<_Item, _CHAIN_COUNT> *tail;
 
-    MultiDoubleChain(const MultiDoubleChain &);            // illegal (can not copy, only move) - not implemented
-    MultiDoubleChain &operator=(const MultiDoubleChain &); // illegal (can not copy, only move) - not implemented
+    MultiDoubleChain(const MultiDoubleChain &) = delete;            // illegal (can not copy, only move)
+    MultiDoubleChain &operator=(const MultiDoubleChain &) = delete; // illegal (can not copy, only move)
 };
 
 template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAccessor>
@@ -280,7 +283,7 @@ template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAcc
 typename MultiDoubleChain<_Item, _CHAIN_COUNT, _CHAIN_ID, _ItemAccessor>::iterator
 MultiDoubleChain<_Item, _CHAIN_COUNT, _CHAIN_ID, _ItemAccessor>::insert(const iterator &i, pointer item) noexcept
 {
-    /*register*/ MultiDoubleChainLink<_Item, _CHAIN_COUNT> *itemLink = _ItemAccessor::getLink(item);
+    MultiDoubleChainLink<_Item, _CHAIN_COUNT> *itemLink = _ItemAccessor::getLink(item);
     assert(LinkAccessor::getPrevious(itemLink) == itemLink);
     assert(LinkAccessor::getNext(itemLink) == itemLink);
     if (i.current == 0)
@@ -411,7 +414,7 @@ void MultiDoubleChain<_Item, _CHAIN_COUNT, _CHAIN_ID, _ItemAccessor>::push_front
 template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAccessor>
 void MultiDoubleChain<_Item, _CHAIN_COUNT, _CHAIN_ID, _ItemAccessor>::push_back(pointer item) noexcept
 {
-    /*register*/ MultiDoubleChainLink<_Item, _CHAIN_COUNT> *itemLink = _ItemAccessor::getLink(item);
+    MultiDoubleChainLink<_Item, _CHAIN_COUNT> *itemLink = _ItemAccessor::getLink(item);
     assert(LinkAccessor::getPrevious(itemLink) == itemLink);
     assert(LinkAccessor::getNext(itemLink) == itemLink);
     if (head == 0)

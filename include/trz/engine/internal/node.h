@@ -18,6 +18,8 @@
 #include "trz/engine/internal/intrinsics.h"
 #include "trz/engine/internal/parallel.h"
 
+#include "trz/engine/RefMapper.h"
+
 #define CRITICAL_ASSERT(x)                                                                                             \
     if (!(x))                                                                                                          \
     {                                                                                                                  \
@@ -32,7 +34,7 @@ class AsyncNode;
 
 #pragma pack(push)
 #pragma pack(1)
-struct AsyncActor::EventTable
+struct Actor::EventTable
 {
     struct RegisteredEvent
     {
@@ -46,7 +48,7 @@ struct AsyncActor::EventTable
     static const int LOW_FREQUENCY_ARRAY_ALIGNEMENT = 5;
     NodeActorId nodeActorId;
     RegisteredEvent hfEvent[HIGH_FREQUENCY_CALLBACK_ARRAY_SIZE];
-    AsyncActor *asyncActor;
+    Actor *asyncActor;
     RegisteredEvent *lfEvent;
     RegisteredEvent *undeliveredEvent;
     size_t undeliveredEventCount;
@@ -64,9 +66,9 @@ struct AsyncActor::EventTable
 #endif
 };
 
-struct AsyncActor::NodeConnection : MultiDoubleChainLink<NodeConnection>
+struct Actor::NodeConnection : MultiDoubleChainLink<NodeConnection>
 {
-    typedef void (*OnOutboundEventFn)(AsyncEngineToEngineConnector *, const AsyncActor::Event &);
+    typedef void (*OnOutboundEventFn)(AsyncEngineToEngineConnector *, const Actor::Event &);
     typedef OnOutboundEventFn OnInboundUndeliveredEventFn;
     ActorId::RouteId::NodeConnectionId nodeConnectionId;
     ActorId::RouteId::NodeConnectionId unreachableNodeConnectionId;
@@ -83,16 +85,16 @@ class AsyncNodesHandle
     char cacheLineHeaderPadding[CACHE_LINE_SIZE - 1];
 
   public:
-    static const int MAX_SIZE = AsyncActor::MAX_NODE_COUNT;
+    static const int MAX_SIZE = Actor::MAX_NODE_COUNT;
     const size_t size;
     const size_t eventAllocatorPageSize;
-    typedef AsyncActor::NodeId NodeId;
-    typedef AsyncEngine::CoreSet CoreSet;
-    typedef AsyncActor::ActorId::RouteId::NodeConnectionId NodeConnectionId;
+    typedef Actor::NodeId NodeId;
+    typedef Engine::CoreSet CoreSet;
+    typedef Actor::ActorId::RouteId::NodeConnectionId NodeConnectionId;
 
     struct NodeHandle;
     struct WriterSharedHandle;
-    typedef AsyncActor::Event::Chain EventChain;
+    typedef Actor::Event::Chain EventChain;
 
 #pragma pack(push)
 #pragma pack(1)
@@ -212,8 +214,8 @@ class AsyncNodesHandle
         inline bool getIsWriteLocked() noexcept { return cl2.isWriteLocked; }
         inline void setIsWriteLocked(bool isWriteLocked) noexcept { cl2.isWriteLocked = isWriteLocked; }
         inline void read() noexcept;
-        inline bool returnToSender(const AsyncActor::Event &) noexcept;
-        static void dispatchUnreachableNodes(AsyncActor::OnUnreachableChain &, Shared::UnreachableNodeConnectionChain &,
+        inline bool returnToSender(const Actor::Event &) noexcept;
+        static void dispatchUnreachableNodes(Actor::OnUnreachableChain &, Shared::UnreachableNodeConnectionChain &,
                                              NodeId, AsyncExceptionHandler &) noexcept;
     };
     struct WriterSharedHandle
@@ -272,10 +274,10 @@ class AsyncNodesHandle
         inline bool write() noexcept;
         void writeFailed() noexcept;
         void writeDispatchAndClearUndeliveredEvents(EventChain &) noexcept;
-        inline bool localOnEvent(const AsyncActor::Event &, uint64_t &) noexcept;
-        inline bool localOnOutboundEvent(const AsyncActor::Event &) noexcept;
-        void onUndeliveredEvent(const AsyncActor::Event &) noexcept;
-        void onUndeliveredEventToSourceActor(const AsyncActor::Event &) noexcept;
+        inline bool localOnEvent(const Actor::Event &, uint64_t &) noexcept;
+        inline bool localOnOutboundEvent(const Actor::Event &) noexcept;
+        void onUndeliveredEvent(const Actor::Event &) noexcept;
+        void onUndeliveredEventToSourceActor(const Actor::Event &) noexcept;
     };
 #pragma pack(pop)
     struct NodeHandle
@@ -283,7 +285,7 @@ class AsyncNodesHandle
         CacheLineAlignedArray<ReaderSharedHandle> readerSharedHandles;
         CacheLineAlignedArray<WriterSharedHandle> writerSharedHandles;
         AsyncNode *node;
-        AsyncActor::NodeActorId nextHanlerId;
+        Actor::NodeActorId nextHanlerId;
         bool stopFlag;
         bool shutdownFlag;
         bool interruptFlag;
@@ -406,7 +408,7 @@ class AsyncNodesHandle
 class AsyncNodeAllocator
 {
   public:
-    typedef AsyncActor::NodeId NodeId;
+    typedef Actor::NodeId NodeId;
 
     AsyncNodeAllocator()
         : // throw (std::bad_alloc)
@@ -567,7 +569,7 @@ class AsyncNodeAllocator
 
 #ifndef NDEBUG
     friend class AsyncNode;
-    friend class AsyncEngine;
+    friend class Engine;
 
     static volatile bool debugActivateMemoryLeakBacktraceFlag;
 
@@ -595,18 +597,18 @@ class AsyncNodeAllocator
 class AsyncNodeManager : private std::unique_ptr<AsyncExceptionHandler>, public Parallel<AsyncNodesHandle>
 {
   public:
-    typedef AsyncActor::CoreId CoreId;
-    typedef AsyncEngine::CoreSet CoreSet;
+    typedef Actor::CoreId CoreId;
+    typedef Engine::CoreSet CoreSet;
 
     AsyncNodeManager(size_t eventAllocatorPageSize,
-                     const CoreSet & = AsyncEngine::FullCoreSet()); // throw (std::bad_alloc)
+                     const CoreSet & = Engine::FullCoreSet()); // throw (std::bad_alloc)
     AsyncNodeManager(AsyncExceptionHandler &pexceptionHandler, size_t eventAllocatorPageSize,
-                     const CoreSet & = AsyncEngine::FullCoreSet()); // throw (std::bad_alloc)
+                     const CoreSet & = Engine::FullCoreSet()); // throw (std::bad_alloc)
     inline const CoreSet &getCoreSet() const noexcept { return coreSet; }
     inline size_t getEventAllocatorPageSize() const noexcept { return nodesHandle.eventAllocatorPageSize; }
 
   private:
-    friend class AsyncEngine;
+    friend class Engine;
     friend class AsyncEngineEventLoop;
     friend class AsyncNode;
     friend class AsyncNodesHandle;
@@ -618,13 +620,13 @@ class AsyncNodeManager : private std::unique_ptr<AsyncExceptionHandler>, public 
 
 struct AsyncNodeBase
 {
-    typedef AsyncActor::Chain AsyncActorChain;
-    typedef AsyncActor::OnUnreachableChain AsyncActorOnUnreachableChain;
-    typedef AsyncActor::Callback::Chain AsyncActorCallbackChain;
-    typedef AsyncActor::NodeConnection::DoubleChain<> NodeConnectionChain;
-    typedef void (*EventToOStreamFunction)(std::ostream &, const AsyncActor::Event &);
-    typedef bool (*EventIsE2ECapableFunction)(const char *&, AsyncActor::Event::EventE2ESerializeFunction &,
-                                              AsyncActor::Event::EventE2EDeserializeFunction &);
+    typedef Actor::Chain AsyncActorChain;
+    typedef Actor::OnUnreachableChain AsyncActorOnUnreachableChain;
+    typedef Actor::Callback::Chain AsyncActorCallbackChain;
+    typedef Actor::NodeConnection::DoubleChain<> NodeConnectionChain;
+    typedef void (*EventToOStreamFunction)(std::ostream &, const Actor::Event &);
+    typedef bool (*EventIsE2ECapableFunction)(const char *&, Actor::Event::EventE2ESerializeFunction &,
+                                              Actor::Event::EventE2EDeserializeFunction &);
     struct StaticShared
     {
         struct EventToStreamFunctions
@@ -639,18 +641,18 @@ struct AsyncNodeBase
         {
           public:
             ~AbsoluteEventIds() noexcept;
-            void addEventId(AsyncActor::EventId,
+            void addEventId(Actor::EventId,
                             const char *); // throw(DuplicateAbsoluteEventIdException, std::bad_alloc)
-            void removeEventId(AsyncActor::EventId) noexcept;
-            std::pair<bool, AsyncActor::EventId> findEventId(const char *) const noexcept;
+            void removeEventId(Actor::EventId) noexcept;
+            std::pair<bool, Actor::EventId> findEventId(const char *) const noexcept;
 
           private:
             struct CStringLess
             {
                 inline bool operator()(const char *x, const char *y) const noexcept { return std::strcmp(x, y) < 0; }
             };
-            typedef std::map<AsyncActor::EventId, std::string> EventIdNameMap;
-            typedef std::map<const char *, AsyncActor::EventId, CStringLess> EventNameIdMap;
+            typedef std::map<Actor::EventId, std::string> EventIdNameMap;
+            typedef std::map<const char *, Actor::EventId, CStringLess> EventNameIdMap;
             EventIdNameMap eventIdNameMap;
             EventNameIdMap eventNameIdMap;
 
@@ -664,9 +666,9 @@ struct AsyncNodeBase
         char cacheLineHeaderPadding[CACHE_LINE_SIZE - 1];
         Mutex mutex;
         std::bitset<SINGLETON_ACTOR_INDEX_SIZE> singletonActorIndexBitSet;
-        std::bitset<AsyncActor::MAX_EVENT_ID_COUNT> eventIdBitSet;
-        EventToStreamFunctions eventToStreamFunctions[AsyncActor::MAX_EVENT_ID_COUNT];
-        EventIsE2ECapableFunction eventIsE2ECapableFunction[AsyncActor::MAX_EVENT_ID_COUNT];
+        std::bitset<Actor::MAX_EVENT_ID_COUNT> eventIdBitSet;
+        EventToStreamFunctions eventToStreamFunctions[Actor::MAX_EVENT_ID_COUNT];
+        EventIsE2ECapableFunction eventIsE2ECapableFunction[Actor::MAX_EVENT_ID_COUNT];
         AbsoluteEventIds absoluteEventIds;
         char cacheLineTrailerPadding[CACHE_LINE_SIZE - 1];
     };
@@ -676,7 +678,7 @@ struct AsyncNodeBase
     {
         typedef DoubleChain<> Chain;
         bool reservedFlag;
-        AsyncActor *asyncActor;
+        Actor *asyncActor;
         inline SingletonActorIndexEntry() noexcept : reservedFlag(false), asyncActor(0) {}
         inline ~SingletonActorIndexEntry() noexcept
         {
@@ -734,19 +736,19 @@ struct AsyncNodeBase
 
     static StaticShared staticShared;
     AsyncNodeAllocator nodeAllocator;
-    std::vector<SingletonActorIndexEntry, AsyncActor::Allocator<SingletonActorIndexEntry>> singletonActorIndex;
+    std::vector<SingletonActorIndexEntry, Actor::Allocator<SingletonActorIndexEntry>> singletonActorIndex;
     SingletonActorIndexEntry::Chain singletonActorIndexChain;
     size_t actorCount;
     AsyncActorChain asyncActorChain;
     AsyncActorChain destroyedAsyncActorChain;
     AsyncActorOnUnreachableChain asyncActorOnUnreachableChain;
-    AsyncActor::EventTable *freeEventTable;
+    Actor::EventTable *freeEventTable;
     AsyncNodeManager &nodeManager;
     AsyncActorCallbackChain asyncActorCallbackChain;
     AsyncActorCallbackChain asyncActorPerformanceNeutralCallbackChain;
     NodeConnectionChain freeNodeConnectionChain;
     NodeConnectionChain inUseNodeConnectionChain;
-    AsyncActor::ActorId::RouteId::NodeConnectionId lastNodeConnectionId;
+    Actor::ActorId::RouteId::NodeConnectionId lastNodeConnectionId;
     NodeActorCountListener::Chain nodeActorCountListenerChain;
     const size_t eventAllocatorPageSize;
     uint8_t loopUsagePerformanceCounterIncrement;
@@ -758,10 +760,10 @@ struct AsyncNodeBase
 class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
 {
   public:
-    typedef AsyncActor::CoreId CoreId;
-    typedef AsyncEngine::CoreSet CoreSet;
+    typedef Actor::CoreId CoreId;
+    typedef Engine::CoreSet CoreSet;
     typedef CoreSet::UndefinedCoreException UndefinedCoreException;
-    typedef AsyncEngine::CoreInUseException CoreInUseException;
+    typedef Engine::CoreInUseException CoreInUseException;
     typedef AsyncEngineCustomEventLoopFactory EventLoopFactory;
     class Thread
     {
@@ -821,6 +823,10 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
         }
     };
 
+    #ifdef DEBUG_REF
+        std::string dbgRefLogStr;
+	#endif
+    
     AsyncNode(const Init &); // throw (std::bad_alloc, UndefinedCoreException, CoreInUseException)
     ~AsyncNode() noexcept;
     inline const CoreSet &getCoreSet() const noexcept { return nodeHandle.coreSet; }
@@ -831,16 +837,28 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
         listener.unsubscribe();
         (listener.chain = &nodeActorCountListenerChain)->push_back(&listener);
     }
-    template <class _AsyncActor> inline _AsyncActor &newAsyncActor()
-    { // throw (std::bad_alloc, AsyncActor::ShutdownException, ...)
-        return AsyncActor::newActor<_AsyncActor>(*this);
-    }
-    template <class _AsyncActor, class _AsyncActorInit> inline _AsyncActor &newAsyncActor(const _AsyncActorInit &init)
-    { // throw (std::bad_alloc, AsyncActor::ShutdownException, ...)
-        return AsyncActor::newActor<_AsyncActor, _AsyncActorInit>(*this, init);
-    }
-    AsyncActor::EventTable &retainEventTable(AsyncActor &); // throw (std::bad_alloc, AsyncActor::ShutdownException)
-    void releaseEventTable(AsyncActor::EventTable &) noexcept;
+    template<class _AsyncActor> inline _AsyncActor& newAsyncActor() { // throw (std::bad_alloc, Actor::ShutdownException, ...)
+		_AsyncActor& actor = Actor::newActor<_AsyncActor>(*this);
+#ifdef DEBUG_REF
+    std::ostringstream stm;
+    stm << "AsyncNode::newAsyncActor;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
+	Actor::appendRefLog(this,stm.str());
+#endif
+		return actor;
+	}
+    template<class _AsyncActor, class _AsyncActorInit> inline _AsyncActor& newAsyncActor(
+			const _AsyncActorInit& init) { // throw (std::bad_alloc, Actor::ShutdownException, ...)
+	_AsyncActor& actor = Actor::newActor<_AsyncActor, _AsyncActorInit>(*this,
+				init);
+#ifdef DEBUG_REF
+    std::ostringstream stm;
+    stm << "AsyncNode::newAsyncActor;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
+	Actor::appendRefLog(this,stm.str());
+#endif
+		return actor;
+	}
+    Actor::EventTable &retainEventTable(Actor &); // throw (std::bad_alloc, Actor::ShutdownException)
+    void releaseEventTable(Actor::EventTable &) noexcept;
     void destroyAsyncActors() noexcept;
     inline void synchronize() noexcept
     {
@@ -873,15 +891,15 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
 #endif
 
   private:
-    friend class AsyncEngine;
-    friend class AsyncActor;
+    friend class Engine;
+    friend class Actor;
     friend class AsyncEngineToEngineConnector;
     friend class AsyncNodesHandle;
     friend class AsyncEngineEventLoop;
 
     AsyncEngineCustomEventLoopFactory::EventLoopAutoPointer eventLoop;
     AsyncNodesHandle::Shared::EventAllocatorPageChain usedlocalEventAllocatorPageChain;
-    AsyncActor::CorePerformanceCounters corePerformanceCounters;
+    Actor::CorePerformanceCounters corePerformanceCounters;
 #ifndef NDEBUG
     bool debugSynchronizePostBarrierFlag;
 #endif
@@ -906,7 +924,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
             }
             while (!tmp.empty())
             {
-                AsyncActor::Callback &callback = *tmp.pop_front();
+                Actor::Callback &callback = *tmp.pop_front();
                 callback.chain = 0;
                 if (callback.nodeActorId == callback.actorEventTable->nodeActorId)
                 {
@@ -988,7 +1006,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
             unreachableNodeConnectionChain.swap(
                 writerSharedHandle.cl2.shared.writeCache.unreachableNodeConnectionChain);
             AsyncNode *node;
-            AsyncActor::OnUnreachableChain *asyncActorOnUnreachableChain;
+            Actor::OnUnreachableChain *asyncActorOnUnreachableChain;
             if (!unreachableNodeConnectionChain.empty() &&
                 !(asyncActorOnUnreachableChain =
                       &(node = writerSharedHandle.cl1.writerNodeHandle->node)->asyncActorOnUnreachableChain)
@@ -1009,7 +1027,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
             while (!tmp.empty())
             {
                 loopUsagePerformanceCounterIncrement = 1;
-                AsyncActor *asyncActor = tmp.front();
+                Actor *asyncActor = tmp.front();
                 assert(asyncActor->chain == &destroyedAsyncActorChain);
                 asyncActor->chain = &tmp;
                 if (asyncActor->referenceFromCount == 0 &&
@@ -1017,10 +1035,10 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
                      asyncActor->onDestroyRequest(), asyncActor->m_DestroyRequestedFlag) &&
                     asyncActor->referenceFromCount == 0)
                 { // Second asyncActor->referenceFromCount == 0 occurs after asyncActor->onDestroyRequest(), in case actor is
-                  // referenced back during onDestroy
+                  // referenced back during onDestroyRequest()
                     asyncActor->chain->remove(asyncActor);
                     asyncActor->chain =
-                        &destroyedAsyncActorChain; // to avoid destroy() effect if called during destructor
+                        &destroyedAsyncActorChain; // to avoid requestDestroy() effect if called during destructor
                     if (asyncActor->singletonActorIndex != StaticShared::SINGLETON_ACTOR_INDEX_SIZE)
                     {
                         assert(asyncActor->singletonActorIndex < StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
@@ -1069,9 +1087,15 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
             listener.onNodeActorCountChange(oldCount, newCount);
         }
     }
+    
+private:
+
+    std::unique_ptr<IRefMapper>     m_RefMapperPtr;
+    IRefMapper                      &m_RefMapper;
+        
 };
 
-bool AsyncActor::EventTable::onEvent(const Event &event, uint64_t &performanceCounter) const
+bool Actor::EventTable::onEvent(const Event &event, uint64_t &performanceCounter) const
 {
     int i = 0;
     for (EventId eventId = event.getClassId(); i < HIGH_FREQUENCY_CALLBACK_ARRAY_SIZE && hfEvent[i].eventId != eventId;
@@ -1087,7 +1111,7 @@ bool AsyncActor::EventTable::onEvent(const Event &event, uint64_t &performanceCo
     return (*hfEvent[i].staticEventHandler)(hfEvent[i].eventHandler, event);
 }
 
-bool AsyncNodesHandle::ReaderSharedHandle::returnToSender(const AsyncActor::Event &event) noexcept
+bool AsyncNodesHandle::ReaderSharedHandle::returnToSender(const Actor::Event &event) noexcept
 {
     assert(!event.isRouted());
     assert(cl1.sharedReadWriteLocked != 0);
@@ -1124,9 +1148,9 @@ void AsyncNodesHandle::ReaderSharedHandle::read() noexcept
     {
         assert(i->getSourceActorId() != i->getDestinationActorId());
         assert(i->getDestinationInProcessActorId().nodeId == node.id);
-        AsyncActor::Event &event = *i;
-        const AsyncActor::InProcessActorId &eventDestinationInProcessActorId = event.getDestinationInProcessActorId();
-        const AsyncActor::EventTable &eventTable = *eventDestinationInProcessActorId.eventTable;
+        Actor::Event &event = *i;
+        const Actor::InProcessActorId &eventDestinationInProcessActorId = event.getDestinationInProcessActorId();
+        const Actor::EventTable &eventTable = *eventDestinationInProcessActorId.eventTable;
         if (eventDestinationInProcessActorId.getNodeActorId() == eventTable.nodeActorId)
         {
             try
@@ -1140,7 +1164,7 @@ void AsyncNodesHandle::ReaderSharedHandle::read() noexcept
                     i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeDeliveredEventChain);
                 }
             }
-            catch (AsyncActor::ReturnToSenderException &)
+            catch (Actor::ReturnToSenderException &)
             {
                 i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeDeliveredEventChain);
             }
@@ -1178,18 +1202,18 @@ void AsyncNodesHandle::ReaderSharedHandle::read() noexcept
         assert(i->isRouteToDestination());
         assert(!i->getRouteId().isInProcess());
         assert(i->getRouteId().getNodeId() == node.id);
-        const AsyncActor::ActorId::RouteId &routeId = i->getRouteId();
-        const AsyncActor::NodeConnection *nodeConnection = routeId.nodeConnection;
+        const Actor::ActorId::RouteId &routeId = i->getRouteId();
+        const Actor::NodeConnection *nodeConnection = routeId.nodeConnection;
         assert(nodeConnection != 0);
         if (routeId.getNodeConnectionId() == nodeConnection->nodeConnectionId)
         {
-            AsyncActor::Event &event = *i;
+            Actor::Event &event = *i;
             try
             {
                 nodeConnection->onOutboundEventFn(nodeConnection->connector, event);
                 ++i;
             }
-            catch (AsyncActor::ReturnToSenderException &)
+            catch (Actor::ReturnToSenderException &)
             {
                 i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeRoutedEventChain);
             }
@@ -1220,9 +1244,9 @@ void AsyncNodesHandle::ReaderSharedHandle::read() noexcept
         assert(i->getSourceActorId().isInProcess());
         assert(!i->getDestinationActorId().isInProcess());
         assert(i->getSourceInProcessActorId().nodeId == node.id);
-        AsyncActor::Event &event = *i;
-        const AsyncActor::InProcessActorId &eventSourceInProcessActorId = event.getSourceInProcessActorId();
-        const AsyncActor::EventTable &eventTable = *eventSourceInProcessActorId.eventTable;
+        Actor::Event &event = *i;
+        const Actor::InProcessActorId &eventSourceInProcessActorId = event.getSourceInProcessActorId();
+        const Actor::EventTable &eventTable = *eventSourceInProcessActorId.eventTable;
         if (eventSourceInProcessActorId.getNodeActorId() == eventTable.nodeActorId)
         {
             try
@@ -1248,7 +1272,7 @@ void AsyncNodesHandle::ReaderSharedHandle::read() noexcept
             }
         }
     }
-    AsyncActor::OnUnreachableChain *asyncActorOnUnreachableChain;
+    Actor::OnUnreachableChain *asyncActorOnUnreachableChain;
     if (!sharedReadWriteLocked.unreachableNodeConnectionChain.empty() &&
         !(asyncActorOnUnreachableChain = &node.asyncActorOnUnreachableChain)->empty())
     {
@@ -1320,7 +1344,7 @@ bool AsyncNodesHandle::WriterSharedHandle::write() noexcept
     return isWriteWorthy;
 }
 
-bool AsyncNodesHandle::WriterSharedHandle::localOnEvent(const AsyncActor::Event &event,
+bool AsyncNodesHandle::WriterSharedHandle::localOnEvent(const Actor::Event &event,
                                                         uint64_t &performanceCounter) noexcept
 {
     assert(cl1.writerNodeHandle != 0);
@@ -1328,9 +1352,9 @@ bool AsyncNodesHandle::WriterSharedHandle::localOnEvent(const AsyncActor::Event 
     assert((!event.isRouted() && event.getSourceInProcessActorId().nodeId == cl1.writerNodeHandle->node->id) ||
            (event.isRouted() && event.getRouteId().getNodeId() == cl1.writerNodeHandle->node->id));
     assert(event.getDestinationInProcessActorId().nodeId == cl1.writerNodeHandle->node->id);
-    const AsyncActor::ActorId &actorId = event.getDestinationActorId();
-    AsyncActor::NodeActorId nodeActorId = actorId.getNodeActorId();
-    const AsyncActor::EventTable *eventTable = actorId.eventTable;
+    const Actor::ActorId &actorId = event.getDestinationActorId();
+    Actor::NodeActorId nodeActorId = actorId.getNodeActorId();
+    const Actor::EventTable *eventTable = actorId.eventTable;
     if (nodeActorId == 0 || nodeActorId != eventTable->nodeActorId)
     {
         return false;
@@ -1339,7 +1363,7 @@ bool AsyncNodesHandle::WriterSharedHandle::localOnEvent(const AsyncActor::Event 
     {
         return eventTable->onEvent(event, performanceCounter);
     }
-    catch (AsyncActor::ReturnToSenderException &)
+    catch (Actor::ReturnToSenderException &)
     {
         return false;
     }
@@ -1358,7 +1382,7 @@ bool AsyncNodesHandle::WriterSharedHandle::localOnEvent(const AsyncActor::Event 
     return true;
 }
 
-bool AsyncNodesHandle::WriterSharedHandle::localOnOutboundEvent(const AsyncActor::Event &event) noexcept
+bool AsyncNodesHandle::WriterSharedHandle::localOnOutboundEvent(const Actor::Event &event) noexcept
 {
     assert(cl1.writerNodeHandle != 0);
     assert(cl1.writerNodeHandle->node != 0);
@@ -1368,8 +1392,8 @@ bool AsyncNodesHandle::WriterSharedHandle::localOnOutboundEvent(const AsyncActor
     assert(event.isRouteToDestination());
     assert(!event.getRouteId().isInProcess());
     assert(event.getRouteId().getNodeId() == cl1.writerNodeHandle->node->id);
-    const AsyncActor::ActorId::RouteId &routeId = event.getRouteId();
-    const AsyncActor::NodeConnection *nodeConnection = routeId.nodeConnection;
+    const Actor::ActorId::RouteId &routeId = event.getRouteId();
+    const Actor::NodeConnection *nodeConnection = routeId.nodeConnection;
     assert(nodeConnection != 0);
     if (routeId.getNodeConnectionId() != nodeConnection->nodeConnectionId)
     {
@@ -1379,7 +1403,7 @@ bool AsyncNodesHandle::WriterSharedHandle::localOnOutboundEvent(const AsyncActor
     {
         nodeConnection->onOutboundEventFn(nodeConnection->connector, event);
     }
-    catch (AsyncActor::ReturnToSenderException &)
+    catch (Actor::ReturnToSenderException &)
     {
         return false;
     }
@@ -1459,7 +1483,7 @@ void *AsyncNodesHandle::Shared::WriteCache::allocateEvent(size_t sz, uint32_t &e
     return ret;
 }
 
-AsyncActor::EventTable::RegisteredEvent::RegisteredEvent() noexcept : eventId(MAX_EVENT_ID_COUNT),
+Actor::EventTable::RegisteredEvent::RegisteredEvent() noexcept : eventId(MAX_EVENT_ID_COUNT),
                                                                       eventHandler(0),
                                                                       staticEventHandler(0)
 {

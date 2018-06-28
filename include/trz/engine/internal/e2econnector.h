@@ -48,7 +48,7 @@ typedef uint64_t engine_id_type;
  */
 struct RouteEntryBase
 {
-    AsyncActor::ActorId::RouteId routeId;
+    Actor::ActorId::RouteId routeId;
     bool isSharedMemory;
     connection_distance_type serialConnectionDistance;
 };
@@ -78,7 +78,7 @@ struct ServiceEntry
 {
     ServiceEntry *nextServiceEntry;
     const char *serviceName;
-    AsyncActor::InProcessActorId serviceInProcessActorId;
+    Actor::InProcessActorId serviceInProcessActorId;
     /**
      * @brief Get the number of Service entries for the given ServiceEntry
      * @param serviceEntry service entry to check
@@ -96,9 +96,9 @@ struct ServiceEntry
 /**
  * @brief Connector registration event
  */
-struct ConnectorRegisterEvent : public AsyncActor::Event
+struct ConnectorRegisterEvent : public Actor::Event
 {
-    AsyncActor::ActorId::RouteId routeId;
+    Actor::ActorId::RouteId routeId;
     bool isSharedMemory;
     connection_distance_type serialConnectionDistance;
     const char *engineName;
@@ -108,22 +108,22 @@ struct ConnectorRegisterEvent : public AsyncActor::Event
 /**
  * @brief Connector unregistration event
  */
-struct ConnectorUnregisterEvent : AsyncActor::Event
+struct ConnectorUnregisterEvent : Actor::Event
 {
-    AsyncActor::ActorId::RouteId routeId;
+    Actor::ActorId::RouteId routeId;
 };
 /**
  * @brief Singleton client subscription event
  */
-struct SingletonClientSubscriptionEvent : AsyncActor::Event
+struct SingletonClientSubscriptionEvent : Actor::Event
 {
-    AsyncActor::NodeId clientNodeId;
+    Actor::NodeId clientNodeId;
     bool unsubscribeFlag;
 };
 /**
  * @brief Singleton client engine event
  */
-struct SingletonClientEngineEvent : AsyncActor::Event
+struct SingletonClientEngineEvent : Actor::Event
 {
     mutable bool undeliveredBadAllocCauseFlag;
     engine_id_type engineId;
@@ -166,38 +166,38 @@ class AsyncEngineToEngineConnector
      */
     struct ServiceEntry
     {
-        AsyncActor::string_type serviceName;
-        AsyncActor::AsyncActor::InProcessActorId serviceInProcessActorId;
+        Actor::string_type serviceName;
+        Actor::Actor::InProcessActorId serviceInProcessActorId;
         /** @brief Basic constructor */
-        inline ServiceEntry(const char *serviceName, const AsyncActor::InProcessActorId &serviceInProcessActorId,
-                            const AsyncActor::AllocatorBase &allocator)
+        inline ServiceEntry(const char *serviceName, const Actor::InProcessActorId &serviceInProcessActorId,
+                            const Actor::AllocatorBase &allocator)
             : serviceName(serviceName, allocator), serviceInProcessActorId(serviceInProcessActorId)
         {
         }
         /** @brief Basic constructor */
-        inline ServiceEntry(const AsyncActor::AllocatorBase &allocator)
+        inline ServiceEntry(const Actor::AllocatorBase &allocator)
             : serviceName(0, allocator), serviceInProcessActorId()
         {
         }
     };
-    typedef std::vector<ServiceEntry, AsyncActor::Allocator<ServiceEntry>> ServiceEntryVector;
+    typedef std::vector<ServiceEntry, Actor::Allocator<ServiceEntry>> ServiceEntryVector;
 
     /** @brief Basic constructor */
-    AsyncEngineToEngineConnector(AsyncActor &); // throw(std::bad_alloc, E2ERouteServiceMissingException)
+    AsyncEngineToEngineConnector(Actor &); // throw(std::bad_alloc, E2ERouteServiceMissingException)
     /** @brief Basic destructor */
     virtual ~AsyncEngineToEngineConnector() noexcept;
     /**
      * @brief Get a comparable RouteId
      * @return Comparable RouteId
      */
-    inline AsyncActor::ActorId::RouteIdComparable getRouteIdComparable() const noexcept
+    inline Actor::ActorId::RouteIdComparable getRouteIdComparable() const noexcept
     {
-        return AsyncActor::ActorId::RouteIdComparable(nodeId, nodeConnectionId);
+        return Actor::ActorId::RouteIdComparable(nodeId, nodeConnectionId);
     }
 
   protected:
-    typedef AsyncActor::ActorId::RouteId::NodeConnectionId NodeConnectionId;
-    typedef void (*OnOutboundEventFn)(AsyncEngineToEngineConnector *, const AsyncActor::Event &);
+    typedef Actor::ActorId::RouteId::NodeConnectionId NodeConnectionId;
+    typedef void (*OnOutboundEventFn)(AsyncEngineToEngineConnector *, const Actor::Event &);
     typedef OnOutboundEventFn OnInboundUndeliveredEventFn;
 
     AsyncNode &asyncNode;
@@ -235,15 +235,15 @@ class AsyncEngineToEngineConnector
      * @brief Get the RouteId of this connector
      * @return
      */
-    inline AsyncActor::ActorId::RouteId getRouteId() const noexcept
+    inline Actor::ActorId::RouteId getRouteId() const noexcept
     {
-        return AsyncActor::ActorId::RouteId(nodeId, nodeConnectionId, nodeConnection);
+        return Actor::ActorId::RouteId(nodeId, nodeConnectionId, nodeConnection);
     }
     /**
      * @brief Set RouteId from ActorId
      * @param externalActorId values to be set from
      */
-    inline void setRouteId(AsyncActor::ActorId &externalActorId) const noexcept
+    inline void setRouteId(Actor::ActorId &externalActorId) const noexcept
     {
         assert(nodeConnectionId != 0);
         externalActorId.routeId.nodeId = nodeId;
@@ -260,11 +260,11 @@ class AsyncEngineToEngineConnector
      * @param deserializeFn event deserilization function
      * @return
      */
-    inline static bool isEventE2ECapable(AsyncActor::EventId eventId, const char *&absoluteEventId,
-                                         AsyncActor::Event::EventE2ESerializeFunction &serializeFn,
-                                         AsyncActor::Event::EventE2EDeserializeFunction &deserializeFn)
+    inline static bool isEventE2ECapable(Actor::EventId eventId, const char *&absoluteEventId,
+                                         Actor::Event::EventE2ESerializeFunction &serializeFn,
+                                         Actor::Event::EventE2EDeserializeFunction &deserializeFn)
     {
-        return AsyncActor::Event::isE2ECapable(eventId, absoluteEventId, serializeFn, deserializeFn);
+        return Actor::Event::isE2ECapable(eventId, absoluteEventId, serializeFn, deserializeFn);
     }
     /**
      * @brief Check if given event is EngineToEngine capable
@@ -274,55 +274,55 @@ class AsyncEngineToEngineConnector
      * @param deserializeFn event deserilization function
      * @return
      */
-    inline static bool isEventE2ECapable(const char *absoluteEventId, AsyncActor::EventId &eventId,
-                                         AsyncActor::Event::EventE2ESerializeFunction &serializeFn,
-                                         AsyncActor::Event::EventE2EDeserializeFunction &deserializeFn)
+    inline static bool isEventE2ECapable(const char *absoluteEventId, Actor::EventId &eventId,
+                                         Actor::Event::EventE2ESerializeFunction &serializeFn,
+                                         Actor::Event::EventE2EDeserializeFunction &deserializeFn)
     {
-        return AsyncActor::Event::isE2ECapable(absoluteEventId, eventId, serializeFn, deserializeFn);
+        return Actor::Event::isE2ECapable(absoluteEventId, eventId, serializeFn, deserializeFn);
     }
     /**
      * @brief Get EventId from Event name
      * @param absoluteEventId event name
      * @return event id
      */
-    inline static std::pair<bool, AsyncActor::EventId> findEventId(const char *absoluteEventId) noexcept
+    inline static std::pair<bool, Actor::EventId> findEventId(const char *absoluteEventId) noexcept
     {
-        return AsyncActor::Event::findEventId(absoluteEventId);
+        return Actor::Event::findEventId(absoluteEventId);
     }
     /** @brief Basic getter */
-    inline const AsyncActor::AllocatorBase &getAllocator() const noexcept { return allocator; }
+    inline const Actor::AllocatorBase &getAllocator() const noexcept { return allocator; }
 
   private:
-    struct InnerActor : AsyncActor, AsyncActor::Callback
+    struct InnerActor : Actor, Actor::Callback
     {
         AsyncEngineToEngineConnector *connector;
         ActorId::RouteId connectionRouteId;
         InnerActor(AsyncEngineToEngineConnector *);
         void onUndeliveredEvent(const e2econnector::ConnectorRegisterEvent &);
         void onCallback() noexcept;
-        void registerConnectionService(const AsyncActor::ActorId::RouteId &, const char *, const char *, bool,
+        void registerConnectionService(const Actor::ActorId::RouteId &, const char *, const char *, bool,
                                        e2econnector::connection_distance_type,
                                        const ServiceEntryVector &); // throw(std::bad_alloc)
         void unregisterConnectionService() noexcept;
     };
 
     class Singleton;
-    const AsyncActor::NodeId nodeId;
+    const Actor::NodeId nodeId;
     NodeConnectionId nodeConnectionId;
-    AsyncActor::NodeConnection *nodeConnection;
-    AsyncActor::string_type peerEngineName;
-    AsyncActor::string_type peerEngineSuffix;
-    AsyncActor::ActorReference<Singleton> singleton;
-    AsyncActor::ActorReference<InnerActor> innerActor;
-    AsyncActor::AllocatorBase allocator;
+    Actor::NodeConnection *nodeConnection;
+    Actor::string_type peerEngineName;
+    Actor::string_type peerEngineSuffix;
+    Actor::ActorReference<Singleton> singleton;
+    Actor::ActorReference<InnerActor> innerActor;
+    Actor::AllocatorBase allocator;
 };
 
 /**
  * @brief EngineToEngine serial connector class
  * Network is little endian encoded.
  * Specialization through Connection class must implement (possibly inlined):
- * void onWriteSerialEvent(const AsyncActor::Event&)
- * void onWriteSerialUndeliveredEvent(const AsyncActor::Event&)
+ * void onWriteSerialEvent(const Actor::Event&)
+ * void onWriteSerialUndeliveredEvent(const Actor::Event&)
  */
 class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnector
 {
@@ -368,7 +368,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
     {
       public:
         /** @brief Constructor */
-        inline SerialInProcessActorId(const AsyncActor::InProcessActorId &inProcessActorId) noexcept :
+        inline SerialInProcessActorId(const Actor::InProcessActorId &inProcessActorId) noexcept :
 #ifdef TREDZONE_LITTLE_ENDIAN
             nodeId(inProcessActorId.nodeId),
             nodeActorId(inProcessActorId.nodeActorId),
@@ -381,7 +381,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
         {
         }
         /** @brief Get NodeId */
-        inline AsyncActor::NodeId getNodeId() const noexcept
+        inline Actor::NodeId getNodeId() const noexcept
         {
 #ifdef TREDZONE_LITTLE_ENDIAN
             return nodeId;
@@ -389,21 +389,21 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
             return littleToNativeEndian(nodeId);
 #endif
         }
-        inline operator AsyncActor::InProcessActorId() const noexcept
+        inline operator Actor::InProcessActorId() const noexcept
         {
 #ifdef TREDZONE_LITTLE_ENDIAN
-            return AsyncActor::InProcessActorId(nodeId, nodeActorId,
-                                                static_cast<AsyncActor::EventTable *>(deserializePointer(eventTable)));
+            return Actor::InProcessActorId(nodeId, nodeActorId,
+                                                static_cast<Actor::EventTable *>(deserializePointer(eventTable)));
 #else
-            return AsyncActor::InProcessActorId(
+            return Actor::InProcessActorId(
                 littleToNativeEndian(nodeId), littleToNativeEndian(nodeActorId),
-                static_cast<AsyncActor::EventTable *>(deserializePointer(littleToNativeEndian(eventTable))));
+                static_cast<Actor::EventTable *>(deserializePointer(littleToNativeEndian(eventTable))));
 #endif
         }
 
       private:
-        AsyncActor::NodeId nodeId;
-        AsyncActor::NodeActorId nodeActorId;
+        Actor::NodeId nodeId;
+        Actor::NodeActorId nodeActorId;
         uint64_t eventTable;
     };
 #pragma pack(pop)
@@ -411,7 +411,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
     typedef e2econnector::connection_distance_type connection_distance_type;
 
     /** @brief Constructor */
-    AsyncEngineToEngineSerialConnector(AsyncActor &, size_t serialBufferSize = 4096 - sizeof(void *)); // hardcoded
+    AsyncEngineToEngineSerialConnector(Actor &, size_t serialBufferSize = 4096 - sizeof(void *)); // hardcoded
     /** @brief Destructor */
     virtual ~AsyncEngineToEngineSerialConnector() noexcept;
 
@@ -445,9 +445,9 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
      * @param externalActorId
      * @return ActorId
      */
-    inline AsyncActor::ActorId setRouteId(const SerialInProcessActorId &externalActorId) const noexcept
+    inline Actor::ActorId setRouteId(const SerialInProcessActorId &externalActorId) const noexcept
     {
-        AsyncActor::ActorId ret(externalActorId);
+        Actor::ActorId ret(externalActorId);
         AsyncEngineToEngineConnector::setRouteId(ret);
         return ret;
     }
@@ -455,7 +455,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
      * @see setRouteId(const SerialInProcessActorId& externalActorId)
      * @param externalActorId
      */
-    inline void setRouteId(AsyncActor::ActorId &externalActorId) const noexcept
+    inline void setRouteId(Actor::ActorId &externalActorId) const noexcept
     {
         return AsyncEngineToEngineConnector::setRouteId(externalActorId);
     }
@@ -480,7 +480,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
         connector.AsyncEngineToEngineConnector::registerConnection(
             peerEngineName, peerEngineSuffix, serviceEntryVector, &StaticOnEvent<_Connector>::onWriteSerialEvent,
             &StaticOnEvent<_Connector>::onWriteSerialUndeliveredEvent, false, distance);
-        for (int i = 0; i < AsyncActor::MAX_EVENT_ID_COUNT; ++i)
+        for (int i = 0; i < Actor::MAX_EVENT_ID_COUNT; ++i)
         {
             connector.eventIdSerializeFnArray[i] = 0;
             connector.eventIdDeserializeArray[i] = tredzone::null;
@@ -498,9 +498,9 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
         writeSerialBuffer.clear();
     }
     /** @brief Get serial read buffer */
-    inline AsyncActor::Event::SerialBuffer &getReadSerialBuffer() noexcept { return readSerialBuffer; }
+    inline Actor::Event::SerialBuffer &getReadSerialBuffer() noexcept { return readSerialBuffer; }
     /** @brief Get serial write buffer */
-    inline AsyncActor::Event::SerialBuffer &getWriteSerialBuffer() noexcept { return writeSerialBuffer; }
+    inline Actor::Event::SerialBuffer &getWriteSerialBuffer() noexcept { return writeSerialBuffer; }
     /** @brief Get connection distance */
     inline connection_distance_type getDistance() const noexcept { return distance; }
     /**
@@ -517,7 +517,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
      * @throws NotE2ECapableException is thrown if event is not EngineToEngine capable. ei: needed methods are not
      * implemented by event
      */
-    inline void writeSerialEvent(const AsyncActor::Event &event) { writeSerialEvent2<SerialRouteEventHeader>(event); }
+    inline void writeSerialEvent(const Actor::Event &event) { writeSerialEvent2<SerialRouteEventHeader>(event); }
     /**
      * @brief Write a SerialUndeliveredEvent into the writeSerialBuffer
      * @param undelivered event to write into serial buffer
@@ -525,7 +525,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
      * @throws NotE2ECapableException is thrown if event is not EngineToEngine capable. ei: needed methods are not
      * implemented by event
      */
-    inline void writeSerialUndeliveredEvent(const AsyncActor::Event &event)
+    inline void writeSerialUndeliveredEvent(const Actor::Event &event)
     { // throw(std::bad_alloc, NotE2ECapableException)
         writeSerialEvent2<SerialReturnEventHeader>(event);
     }
@@ -545,7 +545,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
     class SerialAbsoluteEventIdHeader
     {
       public:
-        inline SerialAbsoluteEventIdHeader(AsyncActor::EventId eventId, uint32_t absoluteEventIdSize) noexcept :
+        inline SerialAbsoluteEventIdHeader(Actor::EventId eventId, uint32_t absoluteEventIdSize) noexcept :
 #ifdef TREDZONE_LITTLE_ENDIAN
             eventType((uint8_t)AbsoluteIdEventType),
             eventId(eventId),
@@ -562,7 +562,7 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
             assert(eventType == AbsoluteIdEventType);
             return (EventTypeEnum)eventType;
         }
-        inline AsyncActor::EventId getEventId() const noexcept
+        inline Actor::EventId getEventId() const noexcept
         {
 #ifdef TREDZONE_LITTLE_ENDIAN
             return eventId;
@@ -581,13 +581,13 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
 
       private:
         uint8_t eventType; // EventTypeEnum
-        AsyncActor::EventId eventId;
+        Actor::EventId eventId;
         uint32_t absoluteEventIdSize;
     };
     class SerialEventHeader
     {
       public:
-        inline AsyncActor::EventId getEventId() const noexcept
+        inline Actor::EventId getEventId() const noexcept
         {
 #ifdef TREDZONE_LITTLE_ENDIAN
             return eventId;
@@ -620,9 +620,9 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
       protected:
         uint8_t eventType; // EventTypeEnum
 
-        inline SerialEventHeader(EventTypeEnum eventType, AsyncActor::EventId eventId,
-                                 const AsyncActor::InProcessActorId &sourceInProcessActorId,
-                                 const AsyncActor::InProcessActorId &destinationInProcessActorId,
+        inline SerialEventHeader(EventTypeEnum eventType, Actor::EventId eventId,
+                                 const Actor::InProcessActorId &sourceInProcessActorId,
+                                 const Actor::InProcessActorId &destinationInProcessActorId,
                                  uint32_t eventSize) noexcept :
 #ifdef TREDZONE_LITTLE_ENDIAN
             eventType((uint8_t)eventType),
@@ -642,16 +642,16 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
         }
 
       private:
-        AsyncActor::EventId eventId;
+        Actor::EventId eventId;
         SerialInProcessActorId sourceInProcessActorId;
         SerialInProcessActorId destinationInProcessActorId;
         uint32_t eventSize;
     };
     struct SerialRouteEventHeader : SerialEventHeader
     {
-        inline SerialRouteEventHeader(AsyncActor::EventId eventId,
-                                      const AsyncActor::InProcessActorId &sourceInProcessActorId,
-                                      const AsyncActor::InProcessActorId &destinationInProcessActorId,
+        inline SerialRouteEventHeader(Actor::EventId eventId,
+                                      const Actor::InProcessActorId &sourceInProcessActorId,
+                                      const Actor::InProcessActorId &destinationInProcessActorId,
                                       uint32_t eventSize) noexcept
             : SerialEventHeader(RouteEventType, eventId, sourceInProcessActorId, destinationInProcessActorId, eventSize)
         {
@@ -664,9 +664,9 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
     };
     struct SerialReturnEventHeader : SerialEventHeader
     {
-        inline SerialReturnEventHeader(AsyncActor::EventId eventId,
-                                       const AsyncActor::InProcessActorId &sourceInProcessActorId,
-                                       const AsyncActor::InProcessActorId &destinationInProcessActorId,
+        inline SerialReturnEventHeader(Actor::EventId eventId,
+                                       const Actor::InProcessActorId &sourceInProcessActorId,
+                                       const Actor::InProcessActorId &destinationInProcessActorId,
                                        uint32_t eventSize) noexcept
             : SerialEventHeader(ReturnEventType, eventId, sourceInProcessActorId, destinationInProcessActorId,
                                 eventSize)
@@ -681,38 +681,38 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
 #pragma pack(pop)
     template <class _Connector> struct StaticOnEvent
     {
-        inline static void onWriteSerialEvent(AsyncEngineToEngineConnector *connector, const AsyncActor::Event &event)
+        inline static void onWriteSerialEvent(AsyncEngineToEngineConnector *connector, const Actor::Event &event)
         {
             static_cast<_Connector *>(connector)->onWriteSerialEvent(event);
         }
         inline static void onWriteSerialUndeliveredEvent(AsyncEngineToEngineConnector *connector,
-                                                         const AsyncActor::Event &event)
+                                                         const Actor::Event &event)
         {
             static_cast<_Connector *>(connector)->onWriteSerialUndeliveredEvent(event);
         }
     };
     struct EventE2EDeserialize
     {
-        AsyncActor::EventId localEventId;
-        AsyncActor::Event::EventE2EDeserializeFunction deserializeFunction;
+        Actor::EventId localEventId;
+        Actor::Event::EventE2EDeserializeFunction deserializeFunction;
         inline void operator=(const Null &) noexcept
         {
-            localEventId = AsyncActor::MAX_EVENT_ID_COUNT;
+            localEventId = Actor::MAX_EVENT_ID_COUNT;
             deserializeFunction = 0;
         }
         inline bool operator==(const Null &) const noexcept
         {
-            assert((localEventId == AsyncActor::MAX_EVENT_ID_COUNT && deserializeFunction == 0) ||
-                   (localEventId > 0 && localEventId < AsyncActor::MAX_EVENT_ID_COUNT && deserializeFunction != 0));
-            return localEventId == AsyncActor::MAX_EVENT_ID_COUNT;
+            assert((localEventId == Actor::MAX_EVENT_ID_COUNT && deserializeFunction == 0) ||
+                   (localEventId > 0 && localEventId < Actor::MAX_EVENT_ID_COUNT && deserializeFunction != 0));
+            return localEventId == Actor::MAX_EVENT_ID_COUNT;
         }
         inline bool operator!=(const Null &) const noexcept { return !(*this == tredzone::null); }
     };
 
-    AsyncActor::Event::EventE2ESerializeFunction *eventIdSerializeFnArray;
+    Actor::Event::EventE2ESerializeFunction *eventIdSerializeFnArray;
     EventE2EDeserialize *eventIdDeserializeArray;
-    AsyncActor::Event::SerialBuffer readSerialBuffer;
-    AsyncActor::Event::SerialBuffer writeSerialBuffer;
+    Actor::Event::SerialBuffer readSerialBuffer;
+    Actor::Event::SerialBuffer writeSerialBuffer;
     char *serialBufferCopy;
     static const int serialBufferCopySize = 65536;
     connection_distance_type distance;
@@ -724,9 +724,9 @@ class AsyncEngineToEngineSerialConnector : protected AsyncEngineToEngineConnecto
     inline void readSerialUndeliveredEvent(const SerialReturnEventHeader &, const void *,
                                            size_t);                                    // throw(SerialException)
     void readSerialAbsoluteIdEvent(const SerialAbsoluteEventIdHeader &, const char *); // throw(SerialException)
-    void writeSerialAbsoluteEventId(AsyncActor::EventId, const char *);                // throw(std::bad_alloc)
+    void writeSerialAbsoluteEventId(Actor::EventId, const char *);                // throw(std::bad_alloc)
     template <class _Header>
-    inline void writeSerialEvent2(const AsyncActor::Event &); // throw(std::bad_alloc, NotE2ECapableException)
+    inline void writeSerialEvent2(const Actor::Event &); // throw(std::bad_alloc, NotE2ECapableException)
 };
 
 /**
@@ -743,7 +743,7 @@ class AsyncEngineToEngineConnectorEventFactory
         destinationEventChain->push_back(event);
     }
     /** @brief Get allocator */
-    AsyncActor::Event::AllocatorBase getAllocator() noexcept;
+    Actor::Event::AllocatorBase getAllocator() noexcept;
 
     /**
      * @brief Allocate n * sizeof(T) bytes using the Tredzone allocator
@@ -778,7 +778,7 @@ class AsyncEngineToEngineConnectorEventFactory
      * @brief Set serial connector's route id from given ActorId
      * @param externalActorId external ActorId
      */
-    inline void setRouteId(AsyncActor::ActorId &externalActorId) const noexcept
+    inline void setRouteId(Actor::ActorId &externalActorId) const noexcept
     {
         serialConnector.setRouteId(externalActorId);
     }
@@ -787,9 +787,9 @@ class AsyncEngineToEngineConnectorEventFactory
      * @param externalInProcessActorId in process ActorId
      * @return ActorId
      */
-    inline AsyncActor::ActorId setRouteId(const AsyncActor::InProcessActorId &externalInProcessActorId) const noexcept
+    inline Actor::ActorId setRouteId(const Actor::InProcessActorId &externalInProcessActorId) const noexcept
     {
-        AsyncActor::ActorId ret(externalInProcessActorId);
+        Actor::ActorId ret(externalInProcessActorId);
         setRouteId(ret);
         return ret;
     }
@@ -801,59 +801,59 @@ class AsyncEngineToEngineConnectorEventFactory
     {
     };
 
-    template <class _Event, class _EventInit> struct EventWrapper : virtual private AsyncActor::EventBase, _Event
+    template <class _Event, class _EventInit> struct EventWrapper : virtual private Actor::EventBase, _Event
     {
         inline EventWrapper(const AsyncEngineToEngineSerialConnector::SerialEventHeader &serialEventHeader,
                             const _EventInit &eventInit)
-            : AsyncActor::EventBase(AsyncActor::Event::getClassId<_Event>(),
+            : Actor::EventBase(Actor::Event::getClassId<_Event>(),
                                     serialEventHeader.getSourceInProcessActorId(),
                                     serialEventHeader.getDestinationInProcessActorId(),
-                                    (AsyncActor::Event::route_offset_type)(
-                                        ((uintptr_t) static_cast<AsyncActor::Event *>((EventWrapper *)0) +
-                                         sizeof(AsyncActor::ActorId::RouteId))
+                                    (Actor::Event::route_offset_type)(
+                                        ((uintptr_t) static_cast<Actor::Event *>((EventWrapper *)0) +
+                                         sizeof(Actor::ActorId::RouteId))
                                         << 1)),
               _Event(eventInit)
         {
             assert(
-                ((uintptr_t) static_cast<AsyncActor::Event *>((EventWrapper *)0) + sizeof(AsyncActor::ActorId::RouteId))
+                ((uintptr_t) static_cast<Actor::Event *>((EventWrapper *)0) + sizeof(Actor::ActorId::RouteId))
                     << 1 <=
-                std::numeric_limits<AsyncActor::Event::route_offset_type>::max());
+                std::numeric_limits<Actor::Event::route_offset_type>::max());
         }
     };
     template <class _Event>
-    struct EventWrapper<_Event, NewEventVoidParameter> : virtual private AsyncActor::EventBase, _Event
+    struct EventWrapper<_Event, NewEventVoidParameter> : virtual private Actor::EventBase, _Event
     {
         inline EventWrapper(const AsyncEngineToEngineSerialConnector::SerialEventHeader &serialEventHeader,
                             const NewEventVoidParameter &)
-            : AsyncActor::EventBase(AsyncActor::Event::getClassId<_Event>(),
+            : Actor::EventBase(Actor::Event::getClassId<_Event>(),
                                     serialEventHeader.getSourceInProcessActorId(),
                                     serialEventHeader.getDestinationInProcessActorId(),
-                                    (AsyncActor::Event::route_offset_type)(
-                                        ((uintptr_t) static_cast<AsyncActor::Event *>((EventWrapper *)0) +
-                                         sizeof(AsyncActor::ActorId::RouteId))
+                                    (Actor::Event::route_offset_type)(
+                                        ((uintptr_t) static_cast<Actor::Event *>((EventWrapper *)0) +
+                                         sizeof(Actor::ActorId::RouteId))
                                         << 1))
         {
             assert(
-                ((uintptr_t) static_cast<AsyncActor::Event *>((EventWrapper *)0) + sizeof(AsyncActor::ActorId::RouteId))
+                ((uintptr_t) static_cast<Actor::Event *>((EventWrapper *)0) + sizeof(Actor::ActorId::RouteId))
                     << 1 <=
-                std::numeric_limits<AsyncActor::Event::route_offset_type>::max());
+                std::numeric_limits<Actor::Event::route_offset_type>::max());
         }
     };
 
     const AsyncEngineToEngineSerialConnector &serialConnector;
     const AsyncEngineToEngineSerialConnector::SerialEventHeader &serialEventHeader;
-    AsyncActor::Event::Chain *destinationEventChain;
-    AsyncActor::Event *event;
-    AsyncActor::Event::AllocatorBase::Factory eventAllocatorFactory;
+    Actor::Event::Chain *destinationEventChain;
+    Actor::Event *event;
+    Actor::Event::AllocatorBase::Factory eventAllocatorFactory;
 #ifndef NDEBUG
-    AsyncActor::EventId debugLocalEventId;
+    Actor::EventId debugLocalEventId;
 #endif
 
 #ifndef NDEBUG
     inline AsyncEngineToEngineConnectorEventFactory(
         const AsyncEngineToEngineSerialConnector &serialConnector,
         const AsyncEngineToEngineSerialConnector::SerialEventHeader &serialEventHeader,
-        AsyncActor::EventId debugLocalEventId) noexcept : serialConnector(serialConnector),
+        Actor::EventId debugLocalEventId) noexcept : serialConnector(serialConnector),
                                                           serialEventHeader(serialEventHeader),
                                                           destinationEventChain(0),
                                                           event(0),
@@ -870,7 +870,7 @@ class AsyncEngineToEngineConnectorEventFactory
     }
 #endif
     void *allocate(size_t);
-    void *allocateEvent(size_t, AsyncActor::Event::Chain *&);
+    void *allocateEvent(size_t, Actor::Event::Chain *&);
     inline void toBeUndeliveredRoutedEvent() noexcept;
 };
 
@@ -894,7 +894,7 @@ class AsyncEngineToEngineSharedMemoryConnector : protected AsyncEngineToEngineCo
     };
 
     /** @brief Constructor */
-    inline AsyncEngineToEngineSharedMemoryConnector(AsyncActor &actor)
+    inline AsyncEngineToEngineSharedMemoryConnector(Actor &actor)
         : AsyncEngineToEngineConnector(actor), actor(actor), sharedMemory(0)
     {
     }
@@ -907,23 +907,23 @@ class AsyncEngineToEngineSharedMemoryConnector : protected AsyncEngineToEngineCo
     virtual void onDisconnected() noexcept = 0;
 
   private:
-    friend class AsyncActor;
-    struct PreBarrierCallback : AsyncActor::Callback
+    friend class Actor;
+    struct PreBarrierCallback : Actor::Callback
     {
         inline void onCallback() noexcept;
     };
-    struct PostBarrierCallback : AsyncActor::Callback
+    struct PostBarrierCallback : Actor::Callback
     {
         inline void onCallback() noexcept;
     };
 
-    AsyncActor &actor;
+    Actor &actor;
     SharedMemory *sharedMemory;
     PreBarrierCallback preBarrierCallback;
     PostBarrierCallback postBarrierCallback;
 
-    static void onWriteSerialEvent(AsyncEngineToEngineConnector *connector, const AsyncActor::Event &event);
-    static void onWriteSerialUndeliveredEvent(AsyncEngineToEngineConnector *connector, const AsyncActor::Event &event);
+    static void onWriteSerialEvent(AsyncEngineToEngineConnector *connector, const Actor::Event &event);
+    static void onWriteSerialUndeliveredEvent(AsyncEngineToEngineConnector *connector, const Actor::Event &event);
     inline void *allocateEvent(size_t sz); // throw(std::bad_alloc)
 };
 
@@ -942,14 +942,14 @@ class AsyncEngineToEngineSharedMemoryConnector::SharedMemory
         }
     };
 
-    SharedMemory(const AsyncActor &, void *, size_t); // throw(UndersizedSharedMemoryException)
+    SharedMemory(const Actor &, void *, size_t); // throw(UndersizedSharedMemoryException)
     ~SharedMemory() noexcept;
     bool tryConnect() noexcept; // no more than one attempt by actor callback (as it may require a memory barrier
                                 // between 2 subsequent calls)
     bool isConnected() noexcept;
 
   private:
-    friend class AsyncActor;
+    friend class Actor;
     friend class AsyncEngineToEngineSharedMemoryConnector;
     struct ConnectionControl;
     struct ReadWriteControl
@@ -1043,7 +1043,7 @@ class AsyncEngineToEngineSharedMemoryConnector::SharedMemory
 /**
  * @brief EngineToEngineConnector ServiceActor
  */
-class AsyncEngineToEngineConnector::ServiceActor : public AsyncActor
+class AsyncEngineToEngineConnector::ServiceActor : public Actor
 {
   public:
     class Proxy;
@@ -1099,9 +1099,9 @@ class AsyncEngineToEngineConnector::ServiceActor : public AsyncActor
     {
         NodeId nodeId;
         Event::Pipe pipe;
-        inline SubscriberNodeEntry(AsyncActor &actor) noexcept : nodeId(MAX_NODE_COUNT), pipe(actor) {}
+        inline SubscriberNodeEntry(Actor &actor) noexcept : nodeId(MAX_NODE_COUNT), pipe(actor) {}
     };
-    struct EventHandler : AsyncActor::Callback
+    struct EventHandler : Actor::Callback
     {
         typedef EngineEntry::DoubleChain<> EngineEntryChain;
         typedef std::list<EngineEntry, Allocator<EngineEntry>> EngineEntryList;
@@ -1171,41 +1171,41 @@ class AsyncEngineToEngineConnector::ServiceActor::Proxy
     class ServiceInfo
     {
       public:
-        AsyncActor::string_type serviceName;
+        Actor::string_type serviceName;
         /** @brief Constructor */
-        inline ServiceInfo(const char *serviceName, const AsyncActor::InProcessActorId &serviceInProcessActorId,
-                           const AsyncActor::AllocatorBase &allocator)
+        inline ServiceInfo(const char *serviceName, const Actor::InProcessActorId &serviceInProcessActorId,
+                           const Actor::AllocatorBase &allocator)
             : serviceName(serviceName, allocator), serviceInProcessActorId(serviceInProcessActorId)
         {
         }
 
       private:
         friend struct SingletonInnerActor;
-        AsyncActor::InProcessActorId serviceInProcessActorId;
+        Actor::InProcessActorId serviceInProcessActorId;
     };
-    typedef std::vector<ServiceInfo, AsyncActor::Allocator<ServiceInfo>> ServiceInfoVector; /**< Service info vector */
-    typedef std::list<RouteInfo, AsyncActor::Allocator<RouteInfo>> RouteInfoList;           /**< Route info vector */
+    typedef std::vector<ServiceInfo, Actor::Allocator<ServiceInfo>> ServiceInfoVector; /**< Service info vector */
+    typedef std::list<RouteInfo, Actor::Allocator<RouteInfo>> RouteInfoList;           /**< Route info vector */
 
     /**
      * @brief EngineInfo class
      */
     struct EngineInfo
     {
-        AsyncActor::string_type engineName;
-        AsyncActor::string_type engineSuffix;
+        Actor::string_type engineName;
+        Actor::string_type engineSuffix;
         ServiceInfoVector serviceInfoVector;
         RouteInfoList routeInfoList;
-        inline EngineInfo(const AsyncActor::AllocatorBase &allocator)
+        inline EngineInfo(const Actor::AllocatorBase &allocator)
             : engineName(allocator), engineSuffix(allocator), serviceInfoVector(allocator), routeInfoList(allocator)
         {
         }
     };
     typedef std::map<engine_id_type, EngineInfo, std::less<engine_id_type>,
-                     AsyncActor::Allocator<std::pair<const engine_id_type, EngineInfo>>>
+                     Actor::Allocator<std::pair<const engine_id_type, EngineInfo>>>
         EngineInfoByIdMap;
 
     /** @brief Constructor */
-    Proxy(AsyncActor &);
+    Proxy(Actor &);
     /** @brief Destructor */
     virtual ~Proxy() noexcept;
 
@@ -1217,8 +1217,8 @@ class AsyncEngineToEngineConnector::ServiceActor::Proxy
      * @return ActorId
      */
     template <class _Service>
-    inline AsyncActor::ActorId getServiceActorId(engine_id_type engineId,
-                                                 const AsyncActor::ActorId::RouteId &routeId) const noexcept
+    inline Actor::ActorId getServiceActorId(engine_id_type engineId,
+                                                 const Actor::ActorId::RouteId &routeId) const noexcept
     {
         return singletonInnerActor->getServiceActorId<_Service>(engineId, routeId);
     }
@@ -1251,7 +1251,7 @@ class AsyncEngineToEngineConnector::ServiceActor::Proxy
         Proxy *proxy;
         inline ProxyWeakReference(Proxy *proxy) noexcept : proxy(proxy) {}
     };
-    struct SingletonInnerActor : AsyncActor
+    struct SingletonInnerActor : Actor
     {
         typedef std::list<ProxyWeakReference, Allocator<ProxyWeakReference>> ProxyWeakReferenceList;
         ProxyWeakReferenceList proxyWeakReferenceList;
@@ -1262,11 +1262,11 @@ class AsyncEngineToEngineConnector::ServiceActor::Proxy
         inline void notifyAddEngineRoute(engine_id_type, const RouteInfoList &) noexcept;
         inline void notifyRemoveEngineRoute(engine_id_type, const RouteInfoList &) noexcept;
         inline static RouteInfoList::iterator findRouteInfo(RouteInfoList &,
-                                                            const AsyncActor::ActorId::RouteId &) noexcept;
+                                                            const Actor::ActorId::RouteId &) noexcept;
         inline static e2econnector::RouteEntry *findRouteEntry(e2econnector::RouteEntry *,
-                                                               const AsyncActor::ActorId::RouteId &) noexcept;
+                                                               const Actor::ActorId::RouteId &) noexcept;
         template <class _Service>
-        inline ActorId getServiceActorId(engine_id_type engineId, const AsyncActor::ActorId::RouteId &routeId) const
+        inline ActorId getServiceActorId(engine_id_type engineId, const Actor::ActorId::RouteId &routeId) const
             noexcept
         {
             EngineInfoByIdMap::const_iterator iengineInfo = engineInfoByIdMap.find(engineId);
@@ -1295,7 +1295,7 @@ class AsyncEngineToEngineConnector::ServiceActor::Proxy
             return ActorId();
         }
     };
-    AsyncActor::ActorReference<SingletonInnerActor> singletonInnerActor;
+    Actor::ActorReference<SingletonInnerActor> singletonInnerActor;
     ProxyWeakReference &proxyWeakReference;
 };
 
@@ -1364,12 +1364,12 @@ bool AsyncEngineToEngineSerialConnector::readSerial()
 void AsyncEngineToEngineSerialConnector::readSerialEvent(const SerialRouteEventHeader &header,
                                                          const void *eventSerialBuffer, size_t eventSerialBufferSize)
 {
-    AsyncActor::EventId peerEventId = header.getEventId();
+    Actor::EventId peerEventId = header.getEventId();
     EventE2EDeserialize *eventE2EDeserialize;
-    if (peerEventId >= AsyncActor::MAX_EVENT_ID_COUNT ||
+    if (peerEventId >= Actor::MAX_EVENT_ID_COUNT ||
         *(eventE2EDeserialize = eventIdDeserializeArray + peerEventId) == tredzone::null)
     {
-        AsyncActor::Event::SerialBuffer::WriteMark eventHeaderWriteMark = writeSerialBuffer.getCurrentWriteMark();
+        Actor::Event::SerialBuffer::WriteMark eventHeaderWriteMark = writeSerialBuffer.getCurrentWriteMark();
         writeSerialBuffer.increaseCurrentWriteBufferSize(eventSerialBufferSize);
         writeSerialBuffer.copyWriteBuffer(eventSerialBuffer, eventSerialBufferSize, eventHeaderWriteMark);
         writeSerialBuffer.increaseCurrentWriteBufferSize(sizeof(SerialReturnEventHeader));
@@ -1389,13 +1389,15 @@ void AsyncEngineToEngineSerialConnector::readSerialEvent(const SerialRouteEventH
     (*eventE2EDeserialize->deserializeFunction)(eventFactory, eventSerialBuffer, eventSerialBufferSize);
 }
 
-template <class _Header> void AsyncEngineToEngineSerialConnector::writeSerialEvent2(const AsyncActor::Event &event)
+template<class _Header>
+void AsyncEngineToEngineSerialConnector::writeSerialEvent2(const Actor::Event &event)
 {
-    AsyncActor::EventId eventId = event.getClassId();
-    assert(eventId < AsyncActor::MAX_EVENT_ID_COUNT);
-    AsyncActor::Event::EventE2ESerializeFunction eventSerializeFn = eventIdSerializeFnArray[eventId];
-    AsyncActor::Event::EventE2EDeserializeFunction eventDeserializeFn;
-    if (eventSerializeFn == 0)
+    const Actor::EventId    eventId = event.getClassId();
+    assert(eventId < Actor::MAX_EVENT_ID_COUNT);
+    
+    Actor::Event::EventE2ESerializeFunction eventSerializeFn = eventIdSerializeFnArray[eventId];
+    Actor::Event::EventE2EDeserializeFunction eventDeserializeFn;
+    if (eventSerializeFn == nullptr)
     {
         const char *absoluteEventId;
         if (isEventE2ECapable(eventId, absoluteEventId, eventSerializeFn, eventDeserializeFn) == false)
@@ -1405,10 +1407,10 @@ template <class _Header> void AsyncEngineToEngineSerialConnector::writeSerialEve
         writeSerialAbsoluteEventId(eventId, absoluteEventId);
         eventIdSerializeFnArray[eventId] = eventSerializeFn;
     }
-    AsyncActor::Event::SerialBuffer::WriteMark eventHeaderWriteMark = writeSerialBuffer.getCurrentWriteMark();
+    Actor::Event::SerialBuffer::WriteMark eventHeaderWriteMark = writeSerialBuffer.getCurrentWriteMark();
     writeSerialBuffer.increaseCurrentWriteBufferSize(sizeof(_Header));
     size_t serialEventSize = writeSerialBuffer.size();
-    assert(eventSerializeFn != 0);
+    assert(eventSerializeFn != nullptr);
     eventSerializeFn(writeSerialBuffer, event);
     assert(writeSerialBuffer.size() >= serialEventSize);
     serialEventSize = writeSerialBuffer.size() - serialEventSize;

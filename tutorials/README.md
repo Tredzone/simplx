@@ -11,5 +11,6 @@ In this directory you'll find the following tutorials, sorted by inceasing compl
 7. referenced and unreferenced actors
 8. ping pong
 9. asynchronous exit
+10. timer
 
 Each folder contains its own README file with further details.

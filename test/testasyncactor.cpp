@@ -61,6 +61,13 @@ class TestUndeliveredActor : public tredzone::Actor, public tredzone::Actor::Cal
     const ActorId otherActorId;
     size_t undeliveredEventCount;
 };
+/**
+ * @file testasyncactor.cpp
+ * @brief test actor functionality
+ * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * Please see accompanying LICENSE file for licensing terms.
+ */
+
 
 void testUndelivered()
 {
@@ -686,7 +693,7 @@ struct TestLoopPerformanceLocalUndeliveredEventActor : TestLoopPerformanceNeutra
     }
 };
 
-struct TestLoopPerformanceEventActor : TestLoopPerformanceNeutralActor, tredzone::Actor::Callback
+struct TestLoopPerformanceEventActor: TestLoopPerformanceNeutralActor, tredzone::Actor::Callback
 {
     TestLoopPerformanceEventActor(PerformanceCounters *performanceCounters)
         : TestLoopPerformanceNeutralActor(*performanceCounters)
@@ -789,8 +796,8 @@ void testLoopPerformanceCounter()
         TestLoopPerformanceNeutralActor::PerformanceCounters(1, 0, 0));
 }
 
-TEST(AsyncActor, undelivered) { testUndelivered(); }
-TEST(AsyncActor, actorReference) { testActorReference(); }
-TEST(AsyncActor, actorMultipleReference) { testActorMultipleReference(); }
-TEST(AsyncActor, detectionOfEventLoopEnd) { testDetectionOfEventLoopEnd(); }
-TEST(AsyncActor, loopPerformanceCounter) { testLoopPerformanceCounter(); }
+TEST(Actor, undelivered) { testUndelivered(); }
+TEST(Actor, actorReference) { testActorReference(); }
+TEST(Actor, actorMultipleReference) { testActorMultipleReference(); }
+TEST(Actor, detectionOfEventLoopEnd) { testDetectionOfEventLoopEnd(); }
+TEST(Actor, loopPerformanceCounter) { testLoopPerformanceCounter(); }

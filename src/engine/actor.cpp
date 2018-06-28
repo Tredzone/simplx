@@ -6,16 +6,19 @@
  */
 
 #include <cstring>
+#include <sstream>
 
 #include "trz/engine/internal/node.h"
+
+using namespace std;
 
 namespace tredzone
 {
 
-const int AsyncActor::MAX_NODE_COUNT;
-const int AsyncActor::MAX_EVENT_ID_COUNT;
+const int Actor::MAX_NODE_COUNT;
+const int Actor::MAX_EVENT_ID_COUNT;
 
-AsyncActor::EventId AsyncActor::Event::retainEventId(EventToOStreamFunction peventNameToOStreamFunction,
+Actor::EventId Actor::Event::retainEventId(EventToOStreamFunction peventNameToOStreamFunction,
                                                      EventToOStreamFunction peventContentToOStreamFunction,
                                                      EventIsE2ECapableFunction peventIsE2ECapableFunction)
 { // throw (std::bad_alloc)
@@ -49,7 +52,7 @@ AsyncActor::EventId AsyncActor::Event::retainEventId(EventToOStreamFunction peve
     return eventId;
 }
 
-void AsyncActor::Event::releaseEventId(EventId eventId) noexcept
+void Actor::Event::releaseEventId(EventId eventId) noexcept
 {
     Mutex::Lock lock(AsyncNodeBase::staticShared.mutex);
     assert(eventId < AsyncNodeBase::staticShared.eventIdBitSet.size());
@@ -71,13 +74,13 @@ void AsyncActor::Event::releaseEventId(EventId eventId) noexcept
     AsyncNodeBase::staticShared.eventIsE2ECapableFunction[eventId] = 0;
 }
 
-std::pair<bool, AsyncActor::EventId> AsyncActor::Event::findEventId(const char *absoluteEventId) noexcept
+std::pair<bool, Actor::EventId> Actor::Event::findEventId(const char *absoluteEventId) noexcept
 {
     Mutex::Lock lock(AsyncNodeBase::staticShared.mutex);
     return AsyncNodeBase::staticShared.absoluteEventIds.findEventId(absoluteEventId);
 }
 
-bool AsyncActor::Event::isE2ECapable(EventId eventId, const char *&absoluteEventId,
+bool Actor::Event::isE2ECapable(EventId eventId, const char *&absoluteEventId,
                                      EventE2ESerializeFunction &serializeFn, EventE2EDeserializeFunction &deserializeFn)
 {
     Mutex::Lock lock(AsyncNodeBase::staticShared.mutex);
@@ -94,7 +97,7 @@ bool AsyncActor::Event::isE2ECapable(EventId eventId, const char *&absoluteEvent
     }
 }
 
-bool AsyncActor::Event::isE2ECapable(const char *absoluteEventId, EventId &eventId,
+bool Actor::Event::isE2ECapable(const char *absoluteEventId, EventId &eventId,
                                      EventE2ESerializeFunction &serializeFn, EventE2EDeserializeFunction &deserializeFn)
 {
     Mutex::Lock lock(AsyncNodeBase::staticShared.mutex);
@@ -112,16 +115,16 @@ bool AsyncActor::Event::isE2ECapable(const char *absoluteEventId, EventId &event
     }
 }
 
-void AsyncActor::Event::nameToOStream(std::ostream &os, const Event &event) { os << event.classId; }
+void Actor::Event::nameToOStream(std::ostream &os, const Event &event) { os << event.classId; }
 
-void AsyncActor::Event::contentToOStream(std::ostream &os, const Event &) { os << '?'; }
+void Actor::Event::contentToOStream(std::ostream &os, const Event &) { os << '?'; }
 
-bool AsyncActor::Event::isE2ECapable(const char *&, EventE2ESerializeFunction &, EventE2EDeserializeFunction &)
+bool Actor::Event::isE2ECapable(const char *&, EventE2ESerializeFunction &, EventE2EDeserializeFunction &)
 {
     return false;
 }
 
-void AsyncActor::Event::toOStream(std::ostream &os, const Event::OStreamName &eventName)
+void Actor::Event::toOStream(std::ostream &os, const Event::OStreamName &eventName)
 {
     assert(eventName.event.classId < MAX_EVENT_ID_COUNT);
     assert(AsyncNodeBase::staticShared.eventToStreamFunctions[eventName.event.classId].eventNameToOStreamFunction != 0);
@@ -129,7 +132,7 @@ void AsyncActor::Event::toOStream(std::ostream &os, const Event::OStreamName &ev
         os, eventName.event);
 }
 
-void AsyncActor::Event::toOStream(std::ostream &os, const Event::OStreamContent &eventContent)
+void Actor::Event::toOStream(std::ostream &os, const Event::OStreamContent &eventContent)
 {
     assert(eventContent.event.classId < MAX_EVENT_ID_COUNT);
     assert(
@@ -139,49 +142,56 @@ void AsyncActor::Event::toOStream(std::ostream &os, const Event::OStreamContent 
         os, eventContent.event);
 }
 
-AsyncActor::CoreId AsyncActor::ActorId::getCore() const
+Actor::CoreId Actor::ActorId::getCore() const
 {
     assert(isInProcess());
     if (isInProcess() == false)
     {
         throw NotInProcessException();
     }
-    return AsyncEngine::getEngine().getCoreSet().at(nodeId);
+    return Engine::getEngine().getCoreSet().at(nodeId);
 }
 
-AsyncActor::AsyncActor()
-    : AsynActorBase(), eventTable((assert(asyncNode != 0), asyncNode->retainEventTable(*this))),
-      singletonActorIndex(AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE),
-      actorId(asyncNode->id, eventTable.nodeActorId, &eventTable), chain(0), onUnreachableChain(0),
-      referenceFromCount(0), m_DestroyRequestedFlag(false), onUnreferencedDestroyFlag(false), processOutPipeCount(0)
-#ifndef NDEBUG
-      ,
-      debugPipeCount(0)
-#endif
+//---- vanilla CTOR ------------------------------------------------------------
+
+    Actor::Actor()
+        : ActorBase(), eventTable((assert(asyncNode != 0), asyncNode->retainEventTable(*this))),
+          singletonActorIndex(AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE),
+          actorId(asyncNode->id, eventTable.nodeActorId, &eventTable), chain(0), onUnreachableChain(0),
+          referenceFromCount(0), m_DestroyRequestedFlag(false), onUnreferencedDestroyFlag(false), processOutPipeCount(0)
+    #ifndef NDEBUG
+          ,
+          debugPipeCount(0)
+    #endif
 {
     (chain = &asyncNode->asyncActorChain)->push_back(this);
     asyncNode->onNodeActorCountChange(1);
 }
 
-AsyncActor::AsyncActor(const AsyncActor &)
-    : AsynActorBase(), super(), eventTable((assert(asyncNode != 0), asyncNode->retainEventTable(*this))),
-      singletonActorIndex(AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE),
-      actorId(asyncNode->id, eventTable.nodeActorId, &eventTable), chain(0), onUnreachableChain(0),
-      referenceFromCount(0), m_DestroyRequestedFlag(false), onUnreferencedDestroyFlag(false), processOutPipeCount(0)
-#ifndef NDEBUG
-      ,
-      debugPipeCount(0)
-#endif
+//---- copy CTOR ---------------------------------------------------------------
+
+    Actor::Actor(const Actor &)
+        : ActorBase(), super(), eventTable((assert(asyncNode != 0), asyncNode->retainEventTable(*this))),
+          singletonActorIndex(AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE),
+          actorId(asyncNode->id, eventTable.nodeActorId, &eventTable), chain(0), onUnreachableChain(0),
+          referenceFromCount(0), m_DestroyRequestedFlag(false), onUnreferencedDestroyFlag(false), processOutPipeCount(0)
+    #ifndef NDEBUG
+          ,
+          debugPipeCount(0)
+    #endif
 {
     (chain = &asyncNode->asyncActorChain)->push_back(this);
     asyncNode->onNodeActorCountChange(1);
 }
 
-AsyncActor::~AsyncActor() noexcept
+//---- Actor DTOR --------------------------------------------------------------
+
+    Actor::~Actor() noexcept
 {
     assert(debugPipeCount == 0);
     assert(processOutPipeCount == 0);
-    assert(referenceFromCount == 0);
+    assert(referenceFromCount == 0);        // make sure is not referenced FROM other actors
+    
     if (chain == &asyncNode->asyncActorChain)
     {
         assert(!m_DestroyRequestedFlag);
@@ -192,31 +202,102 @@ AsyncActor::~AsyncActor() noexcept
         assert(m_DestroyRequestedFlag);
         assert(chain == &asyncNode->destroyedAsyncActorChain);
     }
+    
     if (onUnreachableChain != 0)
     {
         assert(onUnreachableChain == &asyncNode->asyncActorOnUnreachableChain);
         onUnreachableChain->remove(this);
     }
+    
     asyncNode->releaseEventTable(eventTable);
-    while (!referenceToChain.empty())
+    
+    // decrement all references to other actors
+    while (!m_ReferenceToChain.empty())
     {
-        referenceToChain.front()->unchain(referenceToChain);
+        m_ReferenceToChain.front()->unchain(m_ReferenceToChain);
     }
+    
     asyncNode->onNodeActorCountChange(-1);
 }
 
-AsyncActor::CoreId AsyncActor::getCore() const noexcept
+#ifdef DEBUG_REF
+
+//---- Append to Reference Log -------------------------------------------------
+
+void Actor::appendRefLog(AsyncNode* paN, std::string str)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    std::ostringstream stm;
+    stm << (ts.tv_sec*1000000+ts.tv_nsec/1000) << ";" << str;
+    
+    paN->dbgRefLogStr+=(stm.str());
+}
+    
+#endif
+
+//---- Dump Actor --------------------------------------------------------------
+
+template<typename _T>
+class TD;
+
+string    Actor::ActorReferenceBase::Dump(void) const
+{
+    stringstream ss;
+
+    ss << " m_SelfActor = " << cppDemangledTypeInfoName(typeid(*m_SelfActor)) << endl;
+
+    ss << " count = " << m_SelfActor->referenceFromCount << endl;
+
+    ss << " m_RefDestChain = " << endl;
+
+    #if 1
+    
+        // for (auto it : *m_RefDestChain)
+        for (Actor::ActorReferenceBase it : *m_RefDestChain)
+        {
+            // TD<decltype(it)>   devine;
+            
+            const ActorReferenceBase    *link = reinterpret_cast<const ActorReferenceBase*>(&it);
+            
+            ss << "  link = 0x" << hex << setw(16) << setfill('0') << link << " " << cppDemangledTypeInfoName(typeid(*link->m_SelfActor)) << endl;
+        }
+    
+    #else
+    
+        // !doesn't work!
+        /* resolves to
+        MultiDoubleChain<Actor::ActorReferenceBase, 1u, 0u, MultiDoubleChainItemAccessor<Actor::ActorReferenceBase, 1u> >::iterator_base<MultiDoubleChain<Actor::ActorReferenceBase, 1u, 0u, MultiDoubleChainItemAccessor<Actor::ActorReferenceBase, 1u> >, Actor::ActorReferenceBase>
+        */
+        
+        for (auto it = m_RefDestChain->begin(); it != m_RefDestChain->end(); it++)
+        // for (MultiDoubleChain<Actor::ActorReferenceBase> it = m_RefDestChain->begin(); it != m_RefDestChain->end(); it++)
+        {
+            // TD<decltype(it)>   devine;
+            
+            const ActorReferenceBase    *link = reinterpret_cast<const ActorReferenceBase*>(&it);
+            
+            // crashes in demangler if pass *Actor
+            ss << "  link = 0x" << hex << setw(16) << setfill('0') << link << " " << cppDemangledTypeInfoName(typeid(*link->m_SelfActor)) << endl;
+        }
+        
+    #endif
+    
+    return ss.str();
+}
+
+Actor::CoreId Actor::getCore() const noexcept
 {
     return asyncNode->nodeManager.getCoreSet().at(actorId.nodeId);
 }
 
-AsyncEngine &AsyncActor::getEngine() noexcept { return AsyncEngine::getEngine(); }
+Engine &Actor::getEngine() noexcept { return Engine::getEngine(); }
 
-const AsyncEngine &AsyncActor::getEngine() const noexcept { return AsyncEngine::getEngine(); }
+const Engine &Actor::getEngine() const noexcept { return Engine::getEngine(); }
 
-AsyncActor::AllocatorBase AsyncActor::getAllocator() const noexcept { return AllocatorBase(asyncNode->nodeAllocator); }
+Actor::AllocatorBase Actor::getAllocator() const noexcept { return AllocatorBase(asyncNode->nodeAllocator); }
 
-AsyncActor::SingletonActorIndex AsyncActor::retainSingletonActorIndex()
+Actor::SingletonActorIndex Actor::retainSingletonActorIndex()
 { // throw (std::bad_alloc)
     assert(std::numeric_limits<SingletonActorIndex>::max() >= AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
     Mutex::Lock lock(AsyncNodeBase::staticShared.mutex);
@@ -234,7 +315,7 @@ AsyncActor::SingletonActorIndex AsyncActor::retainSingletonActorIndex()
     return singletonActorIndex;
 }
 
-void AsyncActor::releaseSingletonActorIndex(SingletonActorIndex singletonActorIndex) noexcept
+void Actor::releaseSingletonActorIndex(SingletonActorIndex singletonActorIndex) noexcept
 {
     Mutex::Lock lock(AsyncNodeBase::staticShared.mutex);
     assert(singletonActorIndex < AsyncNodeBase::staticShared.singletonActorIndexBitSet.size());
@@ -242,33 +323,39 @@ void AsyncActor::releaseSingletonActorIndex(SingletonActorIndex singletonActorIn
     AsyncNodeBase::staticShared.singletonActorIndexBitSet[singletonActorIndex] = false;
 }
 
-void AsyncActor::onUnreachable(const ActorId::RouteIdComparable &) {}
+void Actor::onUnreachable(const ActorId::RouteIdComparable &) {}
 
-void AsyncActor::onDestroyRequest() noexcept
+void Actor::onDestroyRequest() noexcept
 {
     // flag for (later) destruction
     assert(!m_DestroyRequestedFlag);
     m_DestroyRequestedFlag = true;
 }
 
-void AsyncActor::acceptDestroy(void) noexcept
+void Actor::acceptDestroy(void) noexcept
 {
-    AsyncActor::onDestroyRequest();
+    Actor::onDestroyRequest();
 }
 
-void AsyncActor::requestDestroy() noexcept
+void Actor::requestDestroy() noexcept
 {
     onUnreferencedDestroyFlag = true;
     if (referenceFromCount == 0 && chain != &asyncNode->destroyedAsyncActorChain)
     {
+        #ifdef DEBUG_REF
+            std::ostringstream stm;
+            stm << "Actor::requestDestroy;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << "\n";
+            Actor::appendRefLog(asyncNode,stm.str());
+        #endif
+
         chain->remove(this);
         (chain = &asyncNode->destroyedAsyncActorChain)->push_back(this);
     }
 }
 
-AsyncEngineEventLoop &AsyncActor::getEventLoop() const noexcept { return *asyncNode->eventLoop; }
+AsyncEngineEventLoop &Actor::getEventLoop() const noexcept { return *asyncNode->eventLoop; }
 
-const AsyncActor::CorePerformanceCounters &AsyncActor::getCorePerformanceCounters() const noexcept
+const Actor::CorePerformanceCounters &Actor::getCorePerformanceCounters() const noexcept
 {
     return asyncNode->corePerformanceCounters;
 }
@@ -276,7 +363,7 @@ const AsyncActor::CorePerformanceCounters &AsyncActor::getCorePerformanceCounter
 /**
  * throw (std::bad_alloc)
  */
-uint8_t AsyncActor::registerLowPriorityEventHandler(void *pregisteredEventArray, EventId eventId, void *eventHandler,
+uint8_t Actor::registerLowPriorityEventHandler(void *pregisteredEventArray, EventId eventId, void *eventHandler,
                                                     bool (*staticEventHandler)(void *, const Event &))
 {
     assert(eventId < MAX_EVENT_ID_COUNT);
@@ -330,7 +417,7 @@ uint8_t AsyncActor::registerLowPriorityEventHandler(void *pregisteredEventArray,
 /**
  * throw (std::bad_alloc)
  */
-void AsyncActor::registerLowPriorityEventHandler(EventId eventId, void *eventHandler,
+void Actor::registerLowPriorityEventHandler(EventId eventId, void *eventHandler,
                                                  bool (*staticEventHandler)(void *, const Event &))
 {
     assert(!isRegisteredEventHandler(eventId));
@@ -340,7 +427,7 @@ void AsyncActor::registerLowPriorityEventHandler(EventId eventId, void *eventHan
 /**
  * throw (std::bad_alloc)
  */
-void AsyncActor::registerHighPriorityEventHandler(EventId eventId, void *eventHandler,
+void Actor::registerHighPriorityEventHandler(EventId eventId, void *eventHandler,
                                                   bool (*staticEventHandler)(void *, const Event &))
 {
     assert(!isRegisteredEventHandler(eventId));
@@ -375,7 +462,7 @@ void AsyncActor::registerHighPriorityEventHandler(EventId eventId, void *eventHa
 /**
  * throw (std::bad_alloc)
  */
-void AsyncActor::registerUndeliveredEventHandler(EventId eventId, void *eventHandler,
+void Actor::registerUndeliveredEventHandler(EventId eventId, void *eventHandler,
                                                  bool (*staticEventHandler)(void *, const Event &))
 {
     assert(!isRegisteredUndeliveredEventHandler(eventId));
@@ -389,7 +476,7 @@ void AsyncActor::registerUndeliveredEventHandler(EventId eventId, void *eventHan
     }
 }
 
-uint8_t AsyncActor::unregisterLowPriorityEventHandler(void *pregisteredEvent, EventId eventId) noexcept
+uint8_t Actor::unregisterLowPriorityEventHandler(void *pregisteredEvent, EventId eventId) noexcept
 {
     assert(eventId < MAX_EVENT_ID_COUNT);
     if (pregisteredEvent != 0)
@@ -410,7 +497,7 @@ uint8_t AsyncActor::unregisterLowPriorityEventHandler(void *pregisteredEvent, Ev
     return 0;
 }
 
-void AsyncActor::unregisterLowPriorityEventHandlers(void *pregisteredEvent) noexcept
+void Actor::unregisterLowPriorityEventHandlers(void *pregisteredEvent) noexcept
 {
     if (pregisteredEvent != 0)
     {
@@ -431,7 +518,7 @@ void AsyncActor::unregisterLowPriorityEventHandlers(void *pregisteredEvent) noex
     }
 }
 
-bool AsyncActor::isRegisteredLowPriorityEventHandler(void *pregisteredEvent, EventId eventId) const noexcept
+bool Actor::isRegisteredLowPriorityEventHandler(void *pregisteredEvent, EventId eventId) const noexcept
 {
     assert(eventId < MAX_EVENT_ID_COUNT);
     if (pregisteredEvent != 0)
@@ -446,7 +533,7 @@ bool AsyncActor::isRegisteredLowPriorityEventHandler(void *pregisteredEvent, Eve
     return false;
 }
 
-bool AsyncActor::isRegisteredHighPriorityEventHandler(EventId eventId) const noexcept
+bool Actor::isRegisteredHighPriorityEventHandler(EventId eventId) const noexcept
 {
     EventTable::RegisteredEvent *hfEvent = eventTable.hfEvent;
     int i = 0;
@@ -456,7 +543,7 @@ bool AsyncActor::isRegisteredHighPriorityEventHandler(EventId eventId) const noe
     return i != EventTable::HIGH_FREQUENCY_CALLBACK_ARRAY_SIZE;
 }
 
-void AsyncActor::unregisterHighPriorityEventHandler(EventId eventId) noexcept
+void Actor::unregisterHighPriorityEventHandler(EventId eventId) noexcept
 {
     assert(eventId < MAX_EVENT_ID_COUNT);
     EventTable::RegisteredEvent *hfEvent = eventTable.hfEvent;
@@ -470,13 +557,13 @@ void AsyncActor::unregisterHighPriorityEventHandler(EventId eventId) noexcept
     }
 }
 
-void AsyncActor::unregisterEventHandler(EventId eventId) noexcept
+void Actor::unregisterEventHandler(EventId eventId) noexcept
 {
     unregisterHighPriorityEventHandler(eventId);
     unregisterLowPriorityEventHandler(eventTable.lfEvent, eventId);
 }
 
-void AsyncActor::unregisterUndeliveredEventHandler(EventId eventId) noexcept
+void Actor::unregisterUndeliveredEventHandler(EventId eventId) noexcept
 {
     uint8_t n = unregisterLowPriorityEventHandler(eventTable.undeliveredEvent, eventId);
     assert(n == 0 || (n == 1 && eventTable.undeliveredEventCount > 0));
@@ -489,7 +576,7 @@ void AsyncActor::unregisterUndeliveredEventHandler(EventId eventId) noexcept
     }
 }
 
-void AsyncActor::unregisterAllEventHandlers() noexcept
+void Actor::unregisterAllEventHandlers() noexcept
 {
     EventTable::RegisteredEvent *hfEvent = eventTable.hfEvent;
     for (int i = 0; i < EventTable::HIGH_FREQUENCY_CALLBACK_ARRAY_SIZE; ++i)
@@ -507,18 +594,18 @@ void AsyncActor::unregisterAllEventHandlers() noexcept
     }
 }
 
-bool AsyncActor::isRegisteredEventHandler(EventId eventId) const noexcept
+bool Actor::isRegisteredEventHandler(EventId eventId) const noexcept
 {
     return isRegisteredHighPriorityEventHandler(eventId) ||
            isRegisteredLowPriorityEventHandler(eventTable.lfEvent, eventId);
 }
 
-bool AsyncActor::isRegisteredUndeliveredEventHandler(EventId eventId) const noexcept
+bool Actor::isRegisteredUndeliveredEventHandler(EventId eventId) const noexcept
 {
     return isRegisteredLowPriorityEventHandler(eventTable.undeliveredEvent, eventId);
 }
 
-AsyncActor *AsyncActor::getSingletonActor(SingletonActorIndex singletonActorIndex) noexcept
+Actor *Actor::getSingletonActor(SingletonActorIndex singletonActorIndex) noexcept
 {
     assert(singletonActorIndex < AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
     return asyncNode->singletonActorIndex[singletonActorIndex].asyncActor;
@@ -527,7 +614,7 @@ AsyncActor *AsyncActor::getSingletonActor(SingletonActorIndex singletonActorInde
 /**
  * throw (CircularReferenceException)
  */
-void AsyncActor::reserveSingletonActor(SingletonActorIndex singletonActorIndex)
+void Actor::reserveSingletonActor(SingletonActorIndex singletonActorIndex)
 {
     assert(singletonActorIndex < AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
     if (asyncNode->singletonActorIndex[singletonActorIndex].reservedFlag)
@@ -538,7 +625,7 @@ void AsyncActor::reserveSingletonActor(SingletonActorIndex singletonActorIndex)
     asyncNode->singletonActorIndex[singletonActorIndex].reservedFlag = true;
 }
 
-void AsyncActor::setSingletonActor(SingletonActorIndex singletonActorIndex, AsyncActor &actor) noexcept
+void Actor::setSingletonActor(SingletonActorIndex singletonActorIndex, Actor &actor) noexcept
 {
     assert(singletonActorIndex < AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
     assert(asyncNode->singletonActorIndex[singletonActorIndex].reservedFlag);
@@ -551,7 +638,7 @@ void AsyncActor::setSingletonActor(SingletonActorIndex singletonActorIndex, Asyn
     asyncNode->singletonActorIndexChain.push_back(&singletonActorIndexEntry);
 }
 
-void AsyncActor::unsetSingletonActor(SingletonActorIndex singletonActorIndex) noexcept
+void Actor::unsetSingletonActor(SingletonActorIndex singletonActorIndex) noexcept
 {
     assert(singletonActorIndex < AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
     AsyncNodeBase::SingletonActorIndexEntry &singletonActorIndexEntry =
@@ -567,7 +654,7 @@ void AsyncActor::unsetSingletonActor(SingletonActorIndex singletonActorIndex) no
 /**
  *	throw (ReferenceLocalActorException)
  */
-AsyncActor &AsyncActor::getReferenceToLocalActor(const ActorId &pactorId)
+Actor &Actor::getReferenceToLocalActor(const ActorId &pactorId)
 {
     if (pactorId.isSameCoreAs(actorId) == false)
     {
@@ -583,7 +670,7 @@ AsyncActor &AsyncActor::getReferenceToLocalActor(const ActorId &pactorId)
     return *otherEventTable.asyncActor;
 }
 
-void AsyncActor::registerCallback(void (*ponCallback)(Callback &) noexcept, Callback &pcallback) noexcept
+void Actor::registerCallback(void (*ponCallback)(Callback &) noexcept, Callback &pcallback) noexcept
 {
     pcallback.unregister();
     (pcallback.chain = &asyncNode->asyncActorCallbackChain)->push_back(&pcallback);
@@ -592,7 +679,7 @@ void AsyncActor::registerCallback(void (*ponCallback)(Callback &) noexcept, Call
     pcallback.onCallback = ponCallback;
 }
 
-void AsyncActor::registerPerformanceNeutralCallback(void (*ponCallback)(Callback &) noexcept,
+void Actor::registerPerformanceNeutralCallback(void (*ponCallback)(Callback &) noexcept,
                                                     Callback &pcallback) noexcept
 {
     pcallback.unregister();
@@ -602,19 +689,19 @@ void AsyncActor::registerPerformanceNeutralCallback(void (*ponCallback)(Callback
     pcallback.onCallback = ponCallback;
 }
 
-AsyncActor::AllocatorBase::AllocatorBase(AsyncNode &asyncNode) noexcept : asyncNodeAllocator(&asyncNode.nodeAllocator)
+Actor::AllocatorBase::AllocatorBase(AsyncNode &asyncNode) noexcept : asyncNodeAllocator(&asyncNode.nodeAllocator)
 {
 }
 
 #ifndef NDEBUG
-const ThreadId &AsyncActor::AllocatorBase::debugGetThreadId() const noexcept
+const ThreadId &Actor::AllocatorBase::debugGetThreadId() const noexcept
 {
     assert(asyncNodeAllocator != 0);
     return asyncNodeAllocator->debugGetThreadId();
 }
 #endif
 
-void *AsyncActor::AllocatorBase::allocate(size_t sz, const void *hint)
+void *Actor::AllocatorBase::allocate(size_t sz, const void *hint)
 {
     assert(asyncNodeAllocator != 0);
     if (asyncNodeAllocator == 0)
@@ -624,17 +711,17 @@ void *AsyncActor::AllocatorBase::allocate(size_t sz, const void *hint)
     return asyncNodeAllocator->allocate(sz, hint);
 }
 
-void AsyncActor::AllocatorBase::deallocate(size_t sz, void *p) noexcept
+void Actor::AllocatorBase::deallocate(size_t sz, void *p) noexcept
 {
     return asyncNodeAllocator->deallocate(sz, p);
 }
 
-size_t AsyncActor::Event::AllocatorBase::max_size() const noexcept
+size_t Actor::Event::AllocatorBase::max_size() const noexcept
 {
-    return factory == 0 ? 0 : AsyncEngine::getEngine().getEventAllocatorPageSizeByte();
+    return factory == 0 ? 0 : Engine::getEngine().getEventAllocatorPageSizeByte();
 }
 
-AsyncActor::Event::Pipe::Pipe(AsyncActor &asyncActor, const ActorId &pdestinationActorId) noexcept
+Actor::Event::Pipe::Pipe(Actor &asyncActor, const ActorId &pdestinationActorId) noexcept
     : sourceActor(asyncActor),
       destinationActorId(pdestinationActorId.getNodeActorId() == 0 ? ActorId(sourceActor.getActorId().nodeId, 0, 0)
                                                                    : pdestinationActorId),
@@ -650,7 +737,7 @@ AsyncActor::Event::Pipe::Pipe(AsyncActor &asyncActor, const ActorId &pdestinatio
     registerProcessOutPipe();
 }
 
-void AsyncActor::Event::Pipe::setDestinationActorId(const ActorId &pdestinationActorId) noexcept
+void Actor::Event::Pipe::setDestinationActorId(const ActorId &pdestinationActorId) noexcept
 {
     unregisterProcessOutPipe();
     destinationActorId = pdestinationActorId.getNodeActorId() == 0 ? ActorId(sourceActor.getActorId().nodeId, 0, 0)
@@ -662,7 +749,7 @@ void AsyncActor::Event::Pipe::setDestinationActorId(const ActorId &pdestinationA
     registerProcessOutPipe();
 }
 
-AsyncActor::Event::Pipe::EventFactory AsyncActor::Event::Pipe::getEventFactory() noexcept
+Actor::Event::Pipe::EventFactory Actor::Event::Pipe::getEventFactory() noexcept
 {
     if (destinationActorId.isInProcess())
     {
@@ -684,7 +771,7 @@ AsyncActor::Event::Pipe::EventFactory AsyncActor::Event::Pipe::getEventFactory()
     }
 }
 
-void AsyncActor::Event::Pipe::registerProcessOutPipe() noexcept
+void Actor::Event::Pipe::registerProcessOutPipe() noexcept
 {
     if (destinationActorId.isInProcess() == false &&
         (++sourceActor.processOutPipeCount, sourceActor.onUnreachableChain == 0) &&
@@ -697,16 +784,16 @@ void AsyncActor::Event::Pipe::registerProcessOutPipe() noexcept
 #ifndef NDEBUG
 
 // debug
-AsyncActor::Event::Batch::Batch() noexcept : batchId(0), debugContext(0), debugBatchFn(0) {}
+Actor::Event::Batch::Batch() noexcept : batchId(0), debugContext(0), debugBatchFn(0) {}
 
-AsyncActor::Event::Batch::Batch(void *pdebugContext, DebugBatchFn pdebugBatchFn) noexcept
+Actor::Event::Batch::Batch(void *pdebugContext, DebugBatchFn pdebugBatchFn) noexcept
     : batchId((*pdebugBatchFn)(pdebugContext, true)),
       debugContext(pdebugContext),
       debugBatchFn(pdebugBatchFn)
 {
 }
 
-bool AsyncActor::Event::Batch::debugCheckHasChanged() noexcept
+bool Actor::Event::Batch::debugCheckHasChanged() noexcept
 {
     assert(debugContext != 0);
     uint64_t currentBatchId = (*debugBatchFn)(debugContext, false);
@@ -714,7 +801,7 @@ bool AsyncActor::Event::Batch::debugCheckHasChanged() noexcept
 }
 #endif
 
-void *AsyncActor::Event::Pipe::newInProcessEvent(size_t sz, EventChain *&destinationEventChain, uintptr_t,
+void *Actor::Event::Pipe::newInProcessEvent(size_t sz, EventChain *&destinationEventChain, uintptr_t,
                                                  Event::route_offset_type &)
 {
     destinationEventChain =
@@ -723,12 +810,12 @@ void *AsyncActor::Event::Pipe::newInProcessEvent(size_t sz, EventChain *&destina
     return static_cast<AsyncNodesHandle::Shared::WriteCache *>(eventFactory.context)->allocateEvent(sz);
 }
 
-void *AsyncActor::Event::Pipe::allocateInProcessEvent(size_t sz, void *destinationEventPipe)
+void *Actor::Event::Pipe::allocateInProcessEvent(size_t sz, void *destinationEventPipe)
 {
     return static_cast<AsyncNodesHandle::Shared::WriteCache *>(destinationEventPipe)->allocateEvent(sz);
 }
 
-void *AsyncActor::Event::Pipe::allocateInProcessEvent(size_t sz, void *destinationEventPipe, uint32_t &eventPageIndex,
+void *Actor::Event::Pipe::allocateInProcessEvent(size_t sz, void *destinationEventPipe, uint32_t &eventPageIndex,
                                                       size_t &eventPageOffset)
 {
     return static_cast<AsyncNodesHandle::Shared::WriteCache *>(destinationEventPipe)
@@ -738,7 +825,7 @@ void *AsyncActor::Event::Pipe::allocateInProcessEvent(size_t sz, void *destinati
 #ifndef NDEBUG
 
 // debug
-uint64_t AsyncActor::Event::Pipe::batchInProcessEvent(void *destinationEventPipe, bool incrementFlag) noexcept
+uint64_t Actor::Event::Pipe::batchInProcessEvent(void *destinationEventPipe, bool incrementFlag) noexcept
 {
     if (incrementFlag)
     {
@@ -751,60 +838,17 @@ uint64_t AsyncActor::Event::Pipe::batchInProcessEvent(void *destinationEventPipe
 
 // release
 
-uint64_t AsyncActor::Event::Pipe::batchInProcessEvent(void *destinationEventPipe) noexcept
+uint64_t Actor::Event::Pipe::batchInProcessEvent(void *destinationEventPipe) noexcept
 {
     static_cast<AsyncNodesHandle::Shared::WriteCache *>(destinationEventPipe)->batchIdIncrement = 1;
     return static_cast<AsyncNodesHandle::Shared::WriteCache *>(destinationEventPipe)->batchId;
 }
 #endif
 
-void *AsyncActor::Event::Pipe::newOutOfProcessEvent(size_t sz, EventChain *&destinationEventChain,
-                                                    uintptr_t eventOffset, Event::route_offset_type &routeOffset)
+// static
+bool Actor::ActorReferenceBase::recursiveFind(const Actor &referencedActor, const Actor &referencingActor)
 {
-    return newOutOfProcessEvent(eventFactory.context, sz, destinationEventChain, eventOffset, routeOffset);
+    return referencedActor.asyncNode->m_RefMapper.recursiveFind(referencedActor, referencingActor);
 }
-
-//---- STUBs for WIP engine-to-engine (should never get here) ------------------
-
-void *AsyncActor::Event::Pipe::newOutOfProcessSharedMemoryEvent(size_t, EventChain *&, uintptr_t,
-                                                                Event::route_offset_type &)
-{
-    breakThrow(FeatureNotImplementedException());
-    return nullptr;
-}
-
-void *AsyncActor::Event::Pipe::newOutOfProcessEvent(void *, size_t, EventChain *&, uintptr_t,
-                                                    Event::route_offset_type &)
-{
-    breakThrow(FeatureNotImplementedException());
-    return nullptr;
-}
-
-void *AsyncActor::Event::Pipe::allocateOutOfProcessSharedMemoryEvent(size_t, void *, uint32_t &, size_t &)
-{
-    breakThrow(FeatureNotImplementedException());
-    return nullptr;
-}
-
-void *AsyncActor::Event::Pipe::allocateOutOfProcessSharedMemoryEvent(size_t, void *)
-{
-    breakThrow(FeatureNotImplementedException());
-    return 0;
-}
-
-#ifndef NDEBUG
-uint64_t AsyncActor::Event::Pipe::batchOutOfProcessSharedMemoryEvent(void *, bool) noexcept
-{
-    TRZ_DEBUG_BREAK();
-    return 0;
-}
-#else
-
-uint64_t AsyncActor::Event::Pipe::batchOutOfProcessSharedMemoryEvent(void *) noexcept
-{
-    TRZ_DEBUG_BREAK()
-    return 0;
-}
-#endif
 
 } // namespace

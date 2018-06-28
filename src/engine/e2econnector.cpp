@@ -11,10 +11,10 @@
 namespace tredzone
 {
 
-class AsyncEngineToEngineConnector::Singleton : public AsyncActor, public AsyncActor::Callback
+class AsyncEngineToEngineConnector::Singleton : public Actor, public Actor::Callback
 {
   public:
-    inline void unregisterConnection(AsyncActor::NodeConnection &nodeConnection) noexcept
+    inline void unregisterConnection(Actor::NodeConnection &nodeConnection) noexcept
     {
         nodeConnection.connector = 0;
         nodeConnection.onOutboundEventFn = 0;
@@ -96,7 +96,7 @@ class AsyncEngineToEngineConnector::Singleton : public AsyncActor, public AsyncA
 
   private:
     AsyncNode::NodeConnectionChain unreachableChain;
-    typedef std::bitset<AsyncActor::MAX_NODE_COUNT> UnreachableNotifiedNodeBitSet;
+    typedef std::bitset<Actor::MAX_NODE_COUNT> UnreachableNotifiedNodeBitSet;
     UnreachableNotifiedNodeBitSet unreachableNotifiedNodeBitSet;
 
     virtual void onDestroyRequest() noexcept
@@ -112,9 +112,9 @@ class AsyncEngineToEngineConnector::Singleton : public AsyncActor, public AsyncA
     }
 };
 
-AsyncEngineToEngineConnector::AsyncEngineToEngineConnector(AsyncActor &actor)
+AsyncEngineToEngineConnector::AsyncEngineToEngineConnector(Actor &actor)
     : asyncNode(*actor.asyncNode), nodeId(asyncNode.id), nodeConnectionId(0), nodeConnection(0),
-      peerEngineName(AsyncActor::AllocatorBase(asyncNode)), peerEngineSuffix(AsyncActor::AllocatorBase(asyncNode)),
+      peerEngineName(Actor::AllocatorBase(asyncNode)), peerEngineSuffix(Actor::AllocatorBase(asyncNode)),
       singleton(actor.newReferencedSingletonActor<Singleton>()), innerActor(actor.newReferencedActor<InnerActor>(this)),
       allocator(actor.getAllocator())
 {
@@ -135,9 +135,9 @@ void AsyncEngineToEngineConnector::onConnectionServiceFailure() {}
 
 AsyncEngineToEngineConnector::ServiceEntryVector AsyncEngineToEngineConnector::getServiceVector() const
 {
-    const AsyncEngine::ServiceIndex &serviceIndex = Engine::getEngine().getServiceIndex();
+    const Engine::ServiceIndex &serviceIndex = Engine::getEngine().getServiceIndex();
     size_t n = 0;
-    for (int i = 0; i < AsyncEngine::ServiceIndex::MAX_SIZE; ++i)
+    for (int i = 0; i < Engine::ServiceIndex::MAX_SIZE; ++i)
     {
         if (serviceIndex.table[i].actorId != tredzone::null && !serviceIndex.table[i].name.empty())
         {
@@ -146,7 +146,7 @@ AsyncEngineToEngineConnector::ServiceEntryVector AsyncEngineToEngineConnector::g
     }
     ServiceEntryVector ret(innerActor->getAllocator());
     ret.reserve(n);
-    for (int i = 0; i < AsyncEngine::ServiceIndex::MAX_SIZE; ++i)
+    for (int i = 0; i < Engine::ServiceIndex::MAX_SIZE; ++i)
     {
         if (serviceIndex.table[i].actorId != tredzone::null && !serviceIndex.table[i].name.empty())
         {
@@ -174,9 +174,9 @@ void AsyncEngineToEngineConnector::registerConnection(const char *ppeerEngineNam
     if (asyncNode.freeNodeConnectionChain.empty())
     {
         asyncNode.freeNodeConnectionChain.push_back(
-            new (asyncNode.nodeAllocator.allocate(sizeof(AsyncActor::NodeConnection))) AsyncActor::NodeConnection);
+            new (asyncNode.nodeAllocator.allocate(sizeof(Actor::NodeConnection))) Actor::NodeConnection);
     }
-    innerActor->registerConnectionService(AsyncActor::ActorId::RouteId(nodeId, asyncNode.lastNodeConnectionId + 1,
+    innerActor->registerConnectionService(Actor::ActorId::RouteId(nodeId, asyncNode.lastNodeConnectionId + 1,
                                                                        asyncNode.freeNodeConnectionChain.front()),
                                           ppeerEngineName, ppeerEngineSuffix,
                                           isAsyncEngineToEngineSharedMemoryConnectorFlag, serialConnectionDistance,
@@ -212,7 +212,7 @@ AsyncEngineToEngineConnector::InnerActor::InnerActor(AsyncEngineToEngineConnecto
 }
 
 void AsyncEngineToEngineConnector::InnerActor::registerConnectionService(
-    const AsyncActor::ActorId::RouteId &pconnectionRouteId, const char *pengineName, const char *pengineSuffix,
+    const Actor::ActorId::RouteId &pconnectionRouteId, const char *pengineName, const char *pengineSuffix,
     bool isSharedMemory, e2econnector::connection_distance_type serialConnectionDistance,
     const ServiceEntryVector &serviceEntryVector)
 {
@@ -266,11 +266,11 @@ void AsyncEngineToEngineConnector::InnerActor::registerConnectionService(
 void AsyncEngineToEngineConnector::InnerActor::unregisterConnectionService() noexcept
 {
     assert(connectionRouteId != tredzone::null);
-    assert(!AsyncActor::Callback::isRegistered());
+    assert(!Actor::Callback::isRegistered());
     const ActorId &connectionServiceActorId =
         Engine::getEngine().getServiceIndex().getServiceActorId<service::E2ERoute>();
     if (connectionServiceActorId != tredzone::null && connectionRouteId != tredzone::null &&
-        !AsyncActor::Callback::isRegistered())
+        !Actor::Callback::isRegistered())
     {
         try
         {
@@ -311,7 +311,7 @@ AsyncEngineToEngineConnector::ServiceActor::~ServiceActor() noexcept {}
 
 AsyncEngineToEngineConnector::ServiceActor::EventHandler::EventHandler(ServiceActor &actor)
     : serviceActor(actor), lastEngineId(0), engineEntryList(actor.getAllocator()),
-      subscriberNodeEntryVector(AsyncEngine::getEngine().getCoreSet().size(), SubscriberNodeEntry(actor),
+      subscriberNodeEntryVector(Engine::getEngine().getCoreSet().size(), SubscriberNodeEntry(actor),
                                 actor.getAllocator())
 {
 }
@@ -420,6 +420,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     assert(event.clientNodeId < subscriberNodeEntryVector.size());
     if (event.unsubscribeFlag)
     {
+        assert(event.clientNodeId == singletonClientNodeId(event.getSourceActorId()));
         if (event.clientNodeId == singletonClientNodeId(event.getSourceActorId()))
         {
             singletonClientUnsubscribe(event.clientNodeId);
@@ -592,7 +593,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onCallback() noex
     }
 }
 
-AsyncActor::NodeId
+Actor::NodeId
 AsyncEngineToEngineConnector::ServiceActor::EventHandler::singletonClientNodeId(const ActorId &clientActorId) const
     noexcept
 {
@@ -638,7 +639,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::singletonClientUn
     }
 }
 
-AsyncEngineToEngineConnector::ServiceActor::Proxy::Proxy(AsyncActor &actor)
+AsyncEngineToEngineConnector::ServiceActor::Proxy::Proxy(Actor &actor)
     : singletonInnerActor(actor.newReferencedSingletonActor<SingletonInnerActor>()),
       proxyWeakReference((singletonInnerActor->proxyWeakReferenceList.push_back(ProxyWeakReference(this)),
                           singletonInnerActor->proxyWeakReferenceList.back()))
@@ -852,7 +853,7 @@ void AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::not
 
 AsyncEngineToEngineConnector::ServiceActor::Proxy::RouteInfoList::iterator
 AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRouteInfo(
-    RouteInfoList &routeInfoList, const AsyncActor::ActorId::RouteId &routeId) noexcept
+    RouteInfoList &routeInfoList, const Actor::ActorId::RouteId &routeId) noexcept
 {
     RouteInfoList::iterator irouteInfo = routeInfoList.begin(), endirouteInfo = routeInfoList.end();
     for (; irouteInfo != endirouteInfo && irouteInfo->routeId != routeId; ++irouteInfo)
@@ -862,7 +863,7 @@ AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRout
 }
 
 e2econnector::RouteEntry *AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRouteEntry(
-    e2econnector::RouteEntry *firstRouteEntry, const AsyncActor::ActorId::RouteId &routeId) noexcept
+    e2econnector::RouteEntry *firstRouteEntry, const Actor::ActorId::RouteId &routeId) noexcept
 {
     e2econnector::RouteEntry *routeEntry = firstRouteEntry;
     for (; routeEntry != 0 && routeEntry->routeId != routeId; routeEntry = routeEntry->nextRouteEntry)
@@ -871,7 +872,7 @@ e2econnector::RouteEntry *AsyncEngineToEngineConnector::ServiceActor::Proxy::Sin
     return routeEntry;
 }
 
-AsyncEngineToEngineSerialConnector::AsyncEngineToEngineSerialConnector(AsyncActor &actor, size_t serialBufferSize)
+AsyncEngineToEngineSerialConnector::AsyncEngineToEngineSerialConnector(Actor &actor, size_t serialBufferSize)
     : AsyncEngineToEngineConnector(actor), eventIdSerializeFnArray(0), eventIdDeserializeArray(0),
       readSerialBuffer(actor, serialBufferSize), writeSerialBuffer(actor, serialBufferSize), serialBufferCopy(0),
       distance(0)
@@ -880,27 +881,27 @@ AsyncEngineToEngineSerialConnector::AsyncEngineToEngineSerialConnector(AsyncActo
     try
     {
         // both arrays are initialized on call to registerConnection()
-        eventIdSerializeFnArray = AsyncActor::Allocator<AsyncActor::Event::EventE2ESerializeFunction>(getAllocator())
-                                      .allocate(AsyncActor::MAX_EVENT_ID_COUNT);
+        eventIdSerializeFnArray = Actor::Allocator<Actor::Event::EventE2ESerializeFunction>(getAllocator())
+                                      .allocate(Actor::MAX_EVENT_ID_COUNT);
         eventIdDeserializeArray =
-            AsyncActor::Allocator<EventE2EDeserialize>(getAllocator()).allocate(AsyncActor::MAX_EVENT_ID_COUNT);
-        serialBufferCopy = AsyncActor::Allocator<char>(getAllocator()).allocate(serialBufferCopySize);
+            Actor::Allocator<EventE2EDeserialize>(getAllocator()).allocate(Actor::MAX_EVENT_ID_COUNT);
+        serialBufferCopy = Actor::Allocator<char>(getAllocator()).allocate(serialBufferCopySize);
     }
     catch (const std::bad_alloc &)
     {
         if (eventIdSerializeFnArray != 0)
         {
-            AsyncActor::Allocator<AsyncActor::Event::EventE2ESerializeFunction>(getAllocator())
-                .deallocate(eventIdSerializeFnArray, AsyncActor::MAX_EVENT_ID_COUNT);
+            Actor::Allocator<Actor::Event::EventE2ESerializeFunction>(getAllocator())
+                .deallocate(eventIdSerializeFnArray, Actor::MAX_EVENT_ID_COUNT);
         }
         if (eventIdDeserializeArray != 0)
         {
-            AsyncActor::Allocator<EventE2EDeserialize>(getAllocator())
-                .deallocate(eventIdDeserializeArray, AsyncActor::MAX_EVENT_ID_COUNT);
+            Actor::Allocator<EventE2EDeserialize>(getAllocator())
+                .deallocate(eventIdDeserializeArray, Actor::MAX_EVENT_ID_COUNT);
         }
         if (serialBufferCopy != 0)
         {
-            AsyncActor::Allocator<char>(getAllocator()).deallocate(serialBufferCopy, serialBufferCopySize);
+            Actor::Allocator<char>(getAllocator()).deallocate(serialBufferCopy, serialBufferCopySize);
         }
         throw;
     }
@@ -908,20 +909,20 @@ AsyncEngineToEngineSerialConnector::AsyncEngineToEngineSerialConnector(AsyncActo
 
 AsyncEngineToEngineSerialConnector::~AsyncEngineToEngineSerialConnector() noexcept
 {
-    AsyncActor::Allocator<AsyncActor::Event::EventE2ESerializeFunction>(getAllocator())
-        .deallocate(eventIdSerializeFnArray, AsyncActor::MAX_EVENT_ID_COUNT);
-    AsyncActor::Allocator<EventE2EDeserialize>(getAllocator())
-        .deallocate(eventIdDeserializeArray, AsyncActor::MAX_EVENT_ID_COUNT);
-    AsyncActor::Allocator<char>(getAllocator()).deallocate(serialBufferCopy, serialBufferCopySize);
+    Actor::Allocator<Actor::Event::EventE2ESerializeFunction>(getAllocator())
+        .deallocate(eventIdSerializeFnArray, Actor::MAX_EVENT_ID_COUNT);
+    Actor::Allocator<EventE2EDeserialize>(getAllocator())
+        .deallocate(eventIdDeserializeArray, Actor::MAX_EVENT_ID_COUNT);
+    Actor::Allocator<char>(getAllocator()).deallocate(serialBufferCopy, serialBufferCopySize);
 }
 
-void AsyncEngineToEngineSerialConnector::writeSerialAbsoluteEventId(AsyncActor::EventId eventId,
+void AsyncEngineToEngineSerialConnector::writeSerialAbsoluteEventId(Actor::EventId eventId,
                                                                     const char *absoluteEventId)
 {
     size_t absoluteEventIdSize = strlen(absoluteEventId);
     assert(absoluteEventIdSize <= std::numeric_limits<uint32_t>::max());
     {
-        AsyncActor::Event::SerialBuffer::WriteMark absoluteEventIdHeaderWriteMark =
+        Actor::Event::SerialBuffer::WriteMark absoluteEventIdHeaderWriteMark =
             writeSerialBuffer.getCurrentWriteMark();
         writeSerialBuffer.increaseCurrentWriteBufferSize(sizeof(SerialAbsoluteEventIdHeader));
         if (writeSerialBuffer.getWriteMarkBufferSize(absoluteEventIdHeaderWriteMark) <
@@ -937,7 +938,7 @@ void AsyncEngineToEngineSerialConnector::writeSerialAbsoluteEventId(AsyncActor::
                 SerialAbsoluteEventIdHeader(eventId, (uint32_t)absoluteEventIdSize);
         }
     }
-    AsyncActor::Event::SerialBuffer::WriteMark absoluteEventIdWriteMark = writeSerialBuffer.getCurrentWriteMark();
+    Actor::Event::SerialBuffer::WriteMark absoluteEventIdWriteMark = writeSerialBuffer.getCurrentWriteMark();
     writeSerialBuffer.increaseCurrentWriteBufferSize(absoluteEventIdSize);
     if (writeSerialBuffer.getWriteMarkBufferSize(absoluteEventIdWriteMark) < absoluteEventIdSize)
     {
@@ -968,7 +969,7 @@ bool AsyncEngineToEngineSerialConnector::readSerialRouteEvent()
     }
     if ((int)serialEventSize > serialBufferCopySize)
     {
-        char *localSerialBufferCopy = AsyncActor::Allocator<char>(getAllocator()).allocate(serialEventSize);
+        char *localSerialBufferCopy = Actor::Allocator<char>(getAllocator()).allocate(serialEventSize);
         try
         {
             readSerialBuffer.decreaseCurrentReadBufferSize(sizeof(SerialRouteEventHeader));
@@ -980,10 +981,10 @@ bool AsyncEngineToEngineSerialConnector::readSerialRouteEvent()
         }
         catch (...)
         {
-            AsyncActor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
+            Actor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
             throw;
         }
-        AsyncActor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
+        Actor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
     }
     else
     {
@@ -1016,7 +1017,7 @@ bool AsyncEngineToEngineSerialConnector::readSerialReturnEvent()
     }
     if ((int)serialEventSize > serialBufferCopySize)
     {
-        char *localSerialBufferCopy = AsyncActor::Allocator<char>(getAllocator()).allocate(serialEventSize);
+        char *localSerialBufferCopy = Actor::Allocator<char>(getAllocator()).allocate(serialEventSize);
         try
         {
             readSerialBuffer.decreaseCurrentReadBufferSize(sizeof(SerialReturnEventHeader));
@@ -1028,10 +1029,10 @@ bool AsyncEngineToEngineSerialConnector::readSerialReturnEvent()
         }
         catch (...)
         {
-            AsyncActor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
+            Actor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
             throw;
         }
-        AsyncActor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
+        Actor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialEventSize);
     }
     else
     {
@@ -1049,12 +1050,12 @@ void AsyncEngineToEngineSerialConnector::readSerialUndeliveredEvent(const Serial
                                                                     const void *eventSerialBuffer,
                                                                     size_t eventSerialBufferSize)
 {
-    AsyncActor::EventId peerEventId = header.getEventId();
+    Actor::EventId peerEventId = header.getEventId();
     EventE2EDeserialize *eventE2EDeserialize;
-    if (peerEventId >= AsyncActor::MAX_EVENT_ID_COUNT ||
+    if (peerEventId >= Actor::MAX_EVENT_ID_COUNT ||
         *(eventE2EDeserialize = eventIdDeserializeArray + peerEventId) == tredzone::null)
     {
-        throw SerialException(peerEventId >= AsyncActor::MAX_EVENT_ID_COUNT ? SerialException::OutOfRangeEventIdReason
+        throw SerialException(peerEventId >= Actor::MAX_EVENT_ID_COUNT ? SerialException::OutOfRangeEventIdReason
                                                                             : SerialException::UndefinedEventIdReason);
     }
     assert(eventE2EDeserialize->deserializeFunction != 0);
@@ -1073,19 +1074,19 @@ void AsyncEngineToEngineSerialConnector::readSerialUndeliveredEvent(const Serial
 void AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent(const SerialAbsoluteEventIdHeader &header,
                                                                    const char *absoluteEventId)
 {
-    AsyncActor::EventId peerEventId = header.getEventId();
-    if (peerEventId >= AsyncActor::MAX_EVENT_ID_COUNT)
+    Actor::EventId peerEventId = header.getEventId();
+    if (peerEventId >= Actor::MAX_EVENT_ID_COUNT)
     {
         throw SerialException(SerialException::OutOfRangeEventIdReason);
     }
-    AsyncActor::EventId localEventId;
-    AsyncActor::Event::EventE2ESerializeFunction eventSerializeFn;
-    AsyncActor::Event::EventE2EDeserializeFunction eventDeserializeFn;
+    Actor::EventId localEventId;
+    Actor::Event::EventE2ESerializeFunction eventSerializeFn;
+    Actor::Event::EventE2EDeserializeFunction eventDeserializeFn;
     if (isEventE2ECapable(absoluteEventId, localEventId, eventSerializeFn, eventDeserializeFn) == false)
     {
         return;
     }
-    assert(localEventId < AsyncActor::MAX_EVENT_ID_COUNT);
+    assert(localEventId < Actor::MAX_EVENT_ID_COUNT);
     eventIdDeserializeArray[peerEventId].localEventId = localEventId;
     eventIdDeserializeArray[peerEventId].deserializeFunction = eventDeserializeFn;
 }
@@ -1111,7 +1112,7 @@ bool AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent()
     if ((int)serialAbsoluteEventIdSize + 1 > serialBufferCopySize)
     { // +1 to include null char
         char *localSerialBufferCopy =
-            AsyncActor::Allocator<char>(getAllocator()).allocate(serialAbsoluteEventIdSize + 1);
+            Actor::Allocator<char>(getAllocator()).allocate(serialAbsoluteEventIdSize + 1);
         try
         {
             readSerialBuffer.decreaseCurrentReadBufferSize(sizeof(SerialAbsoluteEventIdHeader));
@@ -1124,11 +1125,11 @@ bool AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent()
         }
         catch (...)
         {
-            AsyncActor::Allocator<char>(getAllocator())
+            Actor::Allocator<char>(getAllocator())
                 .deallocate(localSerialBufferCopy, serialAbsoluteEventIdSize + 1);
             throw;
         }
-        AsyncActor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialAbsoluteEventIdSize + 1);
+        Actor::Allocator<char>(getAllocator()).deallocate(localSerialBufferCopy, serialAbsoluteEventIdSize + 1);
     }
     else
     {
@@ -1168,7 +1169,7 @@ void AsyncEngineToEngineSharedMemoryConnector::unregisterConnection() noexcept
     postBarrierCallback.unregister();
 }
 
-AsyncEngineToEngineSharedMemoryConnector::SharedMemory::SharedMemory(const AsyncActor &actor, void *ptr, size_t sz)
+AsyncEngineToEngineSharedMemoryConnector::SharedMemory::SharedMemory(const Actor &actor, void *ptr, size_t sz)
     : readControl(0), writeControl(0), eventPageSize(actor.asyncNode->getEventAllocatorPageSize()),
       lastConnectionStatus(ConnectionControl::UndefinedStatus)
 {
@@ -1448,18 +1449,18 @@ void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::C
     head = tail = 0;
 }
 
-AsyncActor::Event::AllocatorBase AsyncEngineToEngineConnectorEventFactory::getAllocator() noexcept
+Actor::Event::AllocatorBase AsyncEngineToEngineConnectorEventFactory::getAllocator() noexcept
 {
     eventAllocatorFactory.context =
         &serialConnector.asyncNode
              .getReferenceToWriterShared(serialEventHeader.getDestinationInProcessActorId().getNodeId())
              .writeCache;
-    eventAllocatorFactory.allocateFn = &AsyncActor::Event::Pipe::allocateInProcessEvent;
-    eventAllocatorFactory.allocateAndGetIndexFn = &AsyncActor::Event::Pipe::allocateInProcessEvent;
+    eventAllocatorFactory.allocateFn = &Actor::Event::Pipe::allocateInProcessEvent;
+    eventAllocatorFactory.allocateAndGetIndexFn = &Actor::Event::Pipe::allocateInProcessEvent;
 #ifndef NDEBUG
-    return AsyncActor::Event::AllocatorBase(eventAllocatorFactory, &AsyncActor::Event::Pipe::batchInProcessEvent);
+    return Actor::Event::AllocatorBase(eventAllocatorFactory, &Actor::Event::Pipe::batchInProcessEvent);
 #else
-    return AsyncActor::Event::AllocatorBase(eventAllocatorFactory);
+    return Actor::Event::AllocatorBase(eventAllocatorFactory);
 #endif
 }
 
@@ -1471,14 +1472,14 @@ void *AsyncEngineToEngineConnectorEventFactory::allocate(size_t sz)
 }
 
 void *AsyncEngineToEngineConnectorEventFactory::allocateEvent(size_t sz,
-                                                              AsyncActor::Event::Chain *&destinationEventChain)
+                                                              Actor::Event::Chain *&destinationEventChain)
 {
-    AsyncActor::NodeId destinationNodeId = serialEventHeader.getDestinationInProcessActorId().getNodeId();
+    Actor::NodeId destinationNodeId = serialEventHeader.getDestinationInProcessActorId().getNodeId();
     AsyncNodesHandle::Shared::WriteCache &writeCache =
         serialConnector.asyncNode.getReferenceToWriterShared(destinationNodeId).writeCache;
     destinationEventChain = &writeCache.toBeDeliveredEventChain;
-    AsyncActor::ActorId::RouteId *ret = new (writeCache.allocateEvent(sz + sizeof(AsyncActor::ActorId::RouteId)))
-        AsyncActor::ActorId::RouteId(serialConnector.getRouteId());
+    Actor::ActorId::RouteId *ret = new (writeCache.allocateEvent(sz + sizeof(Actor::ActorId::RouteId)))
+        Actor::ActorId::RouteId(serialConnector.getRouteId());
     serialConnector.asyncNode.setWriteSignal(destinationNodeId);
     return ret + 1;
 }
@@ -1501,13 +1502,13 @@ void AsyncEngineToEngineConnectorEventFactory::toBeUndeliveredRoutedEvent() noex
 }
 
 void AsyncEngineToEngineSharedMemoryConnector::onWriteSerialEvent(AsyncEngineToEngineConnector *,
-                                                                  const AsyncActor::Event &)
+                                                                  const Actor::Event &)
 {
     breakThrow(FeatureNotImplementedException());
 }
 
 void AsyncEngineToEngineSharedMemoryConnector::onWriteSerialUndeliveredEvent(AsyncEngineToEngineConnector *,
-                                                                             const AsyncActor::Event &)
+                                                                             const Actor::Event &)
 {
     breakThrow(FeatureNotImplementedException());
 }

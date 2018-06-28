@@ -7,7 +7,7 @@
 
 #pragma once
 
-#define TREDZONE_ENGINE_VERSION_MAJOR 2                      // major version
-#define TREDZONE_ENGINE_VERSION_MINOR 6                      // minor version
-#define TREDZONE_ENGINE_VERSION_PATCH 4                      // patch version
-#define TREDZONE_ENGINE_VERSION_BRANCH "variadic_push_event" // git branch
+#define TREDZONE_ENGINE_VERSION_MAJOR 2                     // major version
+#define TREDZONE_ENGINE_VERSION_MINOR 6                     // minor version
+#define TREDZONE_ENGINE_VERSION_PATCH 5                     // patch version
+#define TREDZONE_ENGINE_VERSION_BRANCH "u_again"            // git branch

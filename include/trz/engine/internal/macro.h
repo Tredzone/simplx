@@ -10,20 +10,20 @@
 #include <iostream>
 
 #ifndef TRZ_DEBUG_BREAK
-// wasn't user-defined
-#ifndef NDEBUG
-// debug
-#define TRZ_DEBUG_BREAK() assert(false) // break to debugger
-#else
-// release
-#define TRZ_DEBUG_BREAK()
-#endif
+    // wasn't user-defined
+    #ifndef NDEBUG
+        // debug
+        #define TRZ_DEBUG_BREAK() assert(false) // break to debugger
+    #else
+        // release
+        #define TRZ_DEBUG_BREAK()
+    #endif
 #endif
 
 #ifndef NDEBUG
-#define TRZ_DEBUG(x) x
+    #define TRZ_DEBUG(x) x
 #else
-#define TRZ_DEBUG(x)
+    #define TRZ_DEBUG(x)
 #endif
 
 /*
@@ -31,13 +31,9 @@
  * cf: http://en.cppreference.com/w/cpp/preprocessor/replace
  */
 #if __cplusplus > 199711L
-/**
- * @def TREDZONE_CPP11_SUPPORT
- * @brief Will be defined if C++11 is detected
- */
-#define TREDZONE_CPP11_SUPPORT
+    #define TREDZONE_CPP11_SUPPORT
 #else
-#error compiler needs to support C++11
+    #error compiler needs to support C++11
 #endif
 
 /**

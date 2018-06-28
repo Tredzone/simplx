@@ -62,6 +62,8 @@ endif()
 
 #Engine
 add_subdirectory(src/engine)
+#Timer
+add_subdirectory(src/util)
 
 
 

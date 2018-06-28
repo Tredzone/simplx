@@ -64,16 +64,19 @@ int main(int argc, char **argv)
     {
         res = RUN_ALL_TESTS();
     }
-    catch (std::exception &e)
+    catch (exception &e)
     {
-        std::cout << "exception ERROR (" << e.what() << ")" << std::endl;
+        cout << "exception ERROR (" << e.what() << ")" << endl;
         exit(-1);
     }
     catch (...)
     {
-        std::cout << "exception ERROR (?)" << std::endl;
+        cout << "exception ERROR (?)" << endl;
         exit(-1);
     }
+    
+    cout << "Press enter to exit...";
+    cin.get();
 
     return res;
 }

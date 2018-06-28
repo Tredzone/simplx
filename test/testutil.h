@@ -186,11 +186,13 @@ private:
 
 namespace tredzone {
 
+    using Actor = Actor;
+    
 class TestAsyncExceptionHandler: public AsyncExceptionHandler {
 protected:
-	virtual void onEventException(AsyncActor*,
+	virtual void onEventException(Actor*,
 			const std::type_info& asyncActorTypeInfo,
-			const char* onXXX_FunctionName, const AsyncActor::Event& event,
+			const char* onXXX_FunctionName, const Actor::Event& event,
 			const char* whatException) noexcept {
 		std::cout << "TestEventLoop::onEventException(), "
 				<< cppDemangledTypeInfoName(asyncActorTypeInfo) << "::"
@@ -198,9 +200,9 @@ protected:
 				<< whatException << ')' << std::endl;
 		FAIL();
 	}
-	virtual void onUnreachableException(AsyncActor&,
+	virtual void onUnreachableException(Actor&,
 			const std::type_info& asyncActorTypeInfo,
-			const AsyncActor::ActorId::RouteIdComparable& /*routeIdComparable*/,
+			const Actor::ActorId::RouteIdComparable& /*routeIdComparable*/,
 			const char* whatException) noexcept {
 		std::cout << "TestEventLoop::onUnreachableException(), "
 				<< cppDemangledTypeInfoName(asyncActorTypeInfo)
@@ -210,11 +212,13 @@ protected:
 	}
 };
 
-struct TestEngine: TestAsyncExceptionHandler, AsyncEngine {
-	inline TestEngine(StartSequence& startSequence) : AsyncEngine((startSequence.setAsyncExceptionHandler(*this), startSequence)) {
+struct TestEngine: TestAsyncExceptionHandler, Engine
+{
+	inline TestEngine(StartSequence& startSequence) : Engine((startSequence.setAsyncExceptionHandler(*this), startSequence))
+    {
 	}
 };
 
-}
+} // namespace
 
 

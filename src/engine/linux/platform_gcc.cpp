@@ -12,22 +12,24 @@
 
 #include "trz/engine/internal/linux/platform_gcc.h"
 
+using namespace std;
+
 #ifndef NDEBUG
 /**
  * cf: http://linux.die.net/man/3/backtrace_symbols
  */
-std::vector<std::string> tredzone::debugBacktrace(const uint8_t stackTraceSize) noexcept
+vector<string> tredzone::debugBacktrace(const uint8_t stackTraceSize) noexcept
 {
     // void *buffer[stackTraceSize];						// variable length array is VERBOTEN
-    std::vector<void *> buffer(stackTraceSize, nullptr);
+    vector<void *> buffer(stackTraceSize, nullptr);
     char **trace;
-    std::vector<std::string> ret;
+    vector<string> ret;
 
     try
     {
         int32_t returnedStackTraceSize = backtrace(&buffer[0], stackTraceSize);
         assert(returnedStackTraceSize != 0);
-        // std::cout << "> returnedStackTraceSize : " << returnedStackTraceSize << std::endl;
+        // cout << "> returnedStackTraceSize : " << returnedStackTraceSize << endl;
 
         trace = backtrace_symbols(&buffer[0], returnedStackTraceSize);
         assert(trace != 0);
@@ -36,26 +38,26 @@ std::vector<std::string> tredzone::debugBacktrace(const uint8_t stackTraceSize) 
         for (int32_t j = 0; j < returnedStackTraceSize; ++j)
         {
             ret.push_back(demangleFromSymbolName(trace[j]));
-            // std::cout << ret.at(j) << std::endl;
+            // cout << ret.at(j) << endl;
         }
     }
     catch (...)
     {
     }
 
-    std::free(trace);
+    free(trace);
     return ret;
 }
 
 /**
  * cf: https://panthema.net/2008/0901-stacktrace-demangled/
  */
-std::string tredzone::demangleFromSymbolName(char *symbolName) noexcept
+string tredzone::demangleFromSymbolName(char *symbolName) noexcept
 {
     // allocate string which will be filled with the demangled function name
     size_t funcnamesize = 256;
-    char *funcname = (char *)malloc(funcnamesize);
-    std::stringstream ss;
+    char *funcname = (char *)alloca(funcnamesize);
+    stringstream ss;
 
     try
     {
@@ -112,29 +114,38 @@ std::string tredzone::demangleFromSymbolName(char *symbolName) noexcept
     {
     }
 
-    std::free(funcname);
     return ss.str();
 }
 
 #endif
 
-std::string tredzone::cppDemangledTypeInfoName(const std::type_info &typeInfo)
+string tredzone::cppDemangledTypeInfoName(const type_info &typeInfo)
 {
     int status = 0;
     char *demangledName = abi::__cxa_demangle(typeInfo.name(), 0, 0, &status);
-    if (demangledName == 0)
-    {
+    if (!demangledName)
+    {   // couldn't resolve
         return typeInfo.name();
     }
     try
     {
-        std::string ret(demangledName);
-        std::free(demangledName);
+        string ret(demangledName);
+        
+        free(demangledName);
+        
+        const string  stripped = "tredzone::";
+        
+        size_t ind;
+        
+        while (ind = ret.find(stripped), ind != string::npos)
+        {
+            ret.replace(ind, stripped.length(), "");
+        }
+        
         return ret;
     }
     catch (...)
     {
-        std::free(demangledName);
         throw;
     }
 }
@@ -142,7 +153,7 @@ std::string tredzone::cppDemangledTypeInfoName(const std::type_info &typeInfo)
 /**
  * cf: http://linux.die.net/man/3/strerror_r
  */
-std::string tredzone::systemErrorToString(int err)
+string tredzone::systemErrorToString(int err)
 {
     assert(err != 0);
     char buffer[4096];

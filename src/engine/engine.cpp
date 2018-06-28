@@ -9,9 +9,9 @@
 
 extern "C"
 {
-    int TREDZONE_SDK_ARCHITECTURE = tredzone::AsyncEngine::SDK_ARCHITECTURE;
-    int TREDZONE_SDK_COMPATIBILITY_VERSION = tredzone::AsyncEngine::SDK_COMPATIBILITY_VERSION;
-    int TREDZONE_SDK_PATCH_VERSION = tredzone::AsyncEngine::SDK_PATCH_VERSION;
+    int TREDZONE_SDK_ARCHITECTURE = tredzone::Engine::SDK_ARCHITECTURE;
+    int TREDZONE_SDK_COMPATIBILITY_VERSION = tredzone::Engine::SDK_COMPATIBILITY_VERSION;
+    int TREDZONE_SDK_PATCH_VERSION = tredzone::Engine::SDK_PATCH_VERSION;
     int TREDZONE_SDK_COMPILER_ID = TREDZONE_COMPILER_ID;
 }
 
@@ -42,22 +42,16 @@ bool TREDZONE_SDK_IS_COMPILER_COMPATIBLE(int compilerId, const void *compilerVer
 #if defined(__GNUG__)
         return gccVersion.vmajor == __GNUC__ && gccVersion.vminor == __GNUC_MINOR__;
 #else
-#error Not supported C++ compiler
+    #error No supported C++ compiler
 #endif
     }
     return false;
 }
 
-bool TREDZONE_SDK_COMPATIBLE(int sdkCompatibilityVersion, int sdkPatchVersion)
-{
-    return sdkCompatibilityVersion == TREDZONE_SDK_COMPATIBILITY_VERSION &&
-           sdkPatchVersion <= TREDZONE_SDK_PATCH_VERSION;
-}
-
 namespace tredzone
 {
 
-ThreadLocalStorage<AsyncEngine *> AsyncEngine::currentEngineTLS;
+ThreadLocalStorage<Engine *> Engine::currentEngineTLS;
 
 AsyncEngineCustomEventLoopFactory::EventLoopAutoPointer AsyncEngineCustomEventLoopFactory::newEventLoop()
 {
@@ -89,9 +83,9 @@ AsyncEngineEventLoop::~AsyncEngineEventLoop() noexcept
 #endif
 }
 
-AsyncEngine &AsyncEngineEventLoop::getEngine() noexcept { return AsyncEngine::getEngine(); }
+Engine &AsyncEngineEventLoop::getEngine() noexcept { return Engine::getEngine(); }
 
-const AsyncEngine &AsyncEngineEventLoop::getEngine() const noexcept { return AsyncEngine::getEngine(); }
+const Engine &AsyncEngineEventLoop::getEngine() const noexcept { return Engine::getEngine(); }
 
 void AsyncEngineEventLoop::init(AsyncNode &pasyncNode) noexcept
 {
@@ -164,7 +158,7 @@ AsyncExceptionHandler &AsyncEngineEventLoop::getAsyncExceptionHandler() const no
     return asyncNode->nodeManager.exceptionHandler;
 }
 
-void AsyncEngineEventLoop::returnToSender(const AsyncActor::Event &event) noexcept
+void AsyncEngineEventLoop::returnToSender(const Actor::Event &event) noexcept
 {
 #ifndef NDEBUG
     bool debugFoundFlag = false;
@@ -249,26 +243,27 @@ void AsyncEngineCustomEventLoopFactory::DefaultEventLoop::run() noexcept
     asyncNode->synchronizePreBarrier();
 }
 
-class AsyncEngine::CoreActor : public AsyncActor
+//---- CORE ACTOR --------------------------------------------------------------
+
+class Engine::CoreActor : public Actor
 {
   public:
     struct Init
     {
-        AsyncEngine &asyncEngine;
+        Engine &asyncEngine;
         const CoreId coreId;
         const bool isRedZoneFlag;
-        inline Init(AsyncEngine &pasyncEngine, CoreId pcoreId, bool pisRedZoneFlag) noexcept
+        inline Init(Engine &pasyncEngine, CoreId pcoreId, bool pisRedZoneFlag) noexcept
             : asyncEngine(pasyncEngine),
               coreId(pcoreId),
               isRedZoneFlag(pisRedZoneFlag)
         {
         }
     };
-    /**
-     * throw (std::bad_alloc)
-     */
+    
+    // ctor, can throw throw (std::bad_alloc)
     CoreActor(const Init &init)
-        : stopFlag(asyncNode->nodeHandle.stopFlag), shutdownFlag(asyncNode->nodeHandle.shutdownFlag),
+        : stopFlag(asyncNode->nodeHandle.stopFlag), m_ShutdownFlag(asyncNode->nodeHandle.shutdownFlag),
           regularActorsCoreCount(*init.asyncEngine.regularActorsCoreCount), regularActorsCoreCountFlag(false),
           serviceSingletonActor(newReferencedSingletonActor<ServiceSingletonActor>()),
           customCoreActor(init.asyncEngine.customCoreActorFactory.newCustomCoreActor(init.asyncEngine, init.coreId,
@@ -283,13 +278,17 @@ class AsyncEngine::CoreActor : public AsyncActor
     virtual ~CoreActor() noexcept { nodeActorCountListener.unsubscribe(); }
 
   private:
+  
     struct LoopForRegularActorsCoreCountZeroCallback : Callback
     {
         CoreActor &coreActor;
 
         inline LoopForRegularActorsCoreCountZeroCallback(CoreActor &pcoreActor) noexcept : coreActor(pcoreActor) {}
+        
         inline void onCallback() noexcept
         {
+            // [LOIC] coreActor.regularActorsCoreCount
+            
             if (coreActor.regularActorsCoreCount == 0)
             {
                 coreActor.serviceSingletonActor->destroyServiceActors();
@@ -300,41 +299,44 @@ class AsyncEngine::CoreActor : public AsyncActor
             }
         }
     };
-    struct NodeActorCountListener : AsyncNodeBase::NodeActorCountListener
+    
+    class NodeActorCountListener: public AsyncNodeBase::NodeActorCountListener
     {
+    public:
         CoreActor &coreActor;
         NodeActorCountListener(CoreActor &pcoreActor) noexcept : coreActor(pcoreActor) {}
-        virtual void onNodeActorCountChange(size_t oldCount, size_t newCount) noexcept
+        
+        void onNodeActorCountChange(size_t oldCount, size_t newCount) noexcept override
         {
+            // [LOIC] oldCount, newCount
             if (oldCount > newCount)
-            {
-                coreActor.onNodeActorsDestroyed();
+            {   coreActor.onNodeActorsDestroyed();
             }
         }
     };
 
     bool &stopFlag;
-    const bool &shutdownFlag;
+    const bool &m_ShutdownFlag;                                                     // ref affects unit tests! [PL]
     unsigned &regularActorsCoreCount;
     bool regularActorsCoreCountFlag;
     ActorReference<ServiceSingletonActor> serviceSingletonActor;
-    ActorReference<AsyncActor> customCoreActor;
+    ActorReference<Actor> customCoreActor;
     NodeActorCountListener nodeActorCountListener;
     LoopForRegularActorsCoreCountZeroCallback loopForRegularActorsCoreCountZeroCallback;
 
-    static const AsyncActor::ActorReferenceBase *findFirstActorReference(const AsyncActor &referencingActor,
-                                                                         const AsyncActor &referencedActor) noexcept
+    static const Actor::ActorReferenceBase *findFirstActorReference(const Actor &referencingActor,
+                                                                         const Actor &referencedActor) noexcept
     {
         if (&referencingActor == &referencedActor)
         {
             return 0;
         }
-        const AsyncActor::ActorReferenceBase *ret = 0;
-        for (AsyncActor::ReferenceToChain::const_iterator i = referencingActor.referenceToChain.begin(),
-                                                          endi = referencingActor.referenceToChain.end();
+        const Actor::ActorReferenceBase *ret = 0;
+        for (Actor::ReferenceToChain::const_iterator i = referencingActor.m_ReferenceToChain.begin(),
+                                                          endi = referencingActor.m_ReferenceToChain.end();
              ret == 0 && i != endi; ++i)
         {
-            const AsyncActor &actor = *i->getReferencedActor();
+            const Actor &actor = *i->getReferencedActor();
             if (&actor == &referencedActor)
             {
                 ret = &*i;
@@ -346,11 +348,11 @@ class AsyncEngine::CoreActor : public AsyncActor
         }
         return ret;
     }
-    const AsyncActor::ActorReferenceBase *
-    findFirstActorReferenceWithinCoreAndServiceReferencedActors(const AsyncActor &referencedActor) const noexcept
+    const Actor::ActorReferenceBase *
+    findFirstActorReferenceWithinCoreAndServiceReferencedActors(const Actor &referencedActor) const noexcept
     {
         assert(referencedActor.referenceFromCount > 1);
-        const AsyncActor::ActorReferenceBase *ret =
+        const Actor::ActorReferenceBase *ret =
             (this->referenceFromCount == 0 ? findFirstActorReference(*this, referencedActor) : 0);
         for (ServiceSingletonActor::ServiceActorList::const_iterator
                  i = serviceSingletonActor->getServiceActorList().begin(),
@@ -362,14 +364,14 @@ class AsyncEngine::CoreActor : public AsyncActor
         assert(ret != 0);
         return ret;
     }
-    size_t countReferencedActors(const AsyncActor &referencingActor) const noexcept
+    size_t countReferencedActors(const Actor &referencingActor) const noexcept
     {
         size_t ret = 0;
-        for (AsyncActor::ReferenceToChain::const_iterator i = referencingActor.referenceToChain.begin(),
-                                                          endi = referencingActor.referenceToChain.end();
+        for (Actor::ReferenceToChain::const_iterator i = referencingActor.m_ReferenceToChain.begin(),
+                                                          endi = referencingActor.m_ReferenceToChain.end();
              i != endi; ++i)
         {
-            const AsyncActor &actor = *i->getReferencedActor();
+            const Actor &actor = *i->getReferencedActor();
             assert(actor.referenceFromCount >= 1);
             if (actor.referenceFromCount == 1 ||
                 findFirstActorReferenceWithinCoreAndServiceReferencedActors(actor) == &*i)
@@ -377,8 +379,12 @@ class AsyncEngine::CoreActor : public AsyncActor
                 ret += 1 + countReferencedActors(actor);
             }
         }
+        
+        // [LOIC] ret
+        
         return ret;
     }
+    
     bool onlyCoreAndServiceReferencedActorsLeft() const noexcept
     {
         size_t count = (this->referenceFromCount == 0 ? 1 + countReferencedActors(*this) : 0);
@@ -391,6 +397,7 @@ class AsyncEngine::CoreActor : public AsyncActor
         }
         return count == asyncNode->getActorCount();
     }
+    
     virtual void onDestroyRequest() noexcept
     {
         if (onlyCoreAndServiceReferencedActorsLeft())
@@ -403,9 +410,9 @@ class AsyncEngine::CoreActor : public AsyncActor
                     regularActorsCoreCountFlag = true;
                     atomicSubAndFetch(&regularActorsCoreCount, 1);
                 }
-                AsyncActor::onDestroyRequest();
+                Actor::onDestroyRequest();
             }
-            else if (shutdownFlag && !regularActorsCoreCountFlag)
+            else if (m_ShutdownFlag && !regularActorsCoreCountFlag)
             {
                 regularActorsCoreCountFlag = true;
                 atomicSubAndFetch(&regularActorsCoreCount, 1);
@@ -417,17 +424,17 @@ class AsyncEngine::CoreActor : public AsyncActor
     {
         if (onlyCoreAndServiceReferencedActorsLeft() &&
             (serviceSingletonActor->getServiceActorList().empty() ||
-             (shutdownFlag && !serviceSingletonActor->isServiceDestroyTimeFlag)))
+             (m_ShutdownFlag && !serviceSingletonActor->isServiceDestroyTimeFlag)))
         {
             requestDestroy();
         }
     }
 };
 
-Mutex AsyncEngine::ServiceIndex::mutex;
-unsigned AsyncEngine::ServiceIndex::staticIndexValue = 0;
+Mutex Engine::ServiceIndex::mutex;
+unsigned Engine::ServiceIndex::staticIndexValue = 0;
 
-AsyncEngine::AsyncEngine(const StartSequence &startSequence)
+Engine::Engine(const StartSequence &startSequence)
     : engineName(startSequence.getEngineName()), engineSuffix(startSequence.getEngineSuffix()),
       threadStackSizeByte(startSequence.getThreadStackSizeByte()), redZoneParam(startSequence.getRedZoneParam()),
       regularActorsCoreCount(1u), defaultCoreActorFactory(new AsyncEngineCustomCoreActorFactory),
@@ -473,9 +480,9 @@ AsyncEngine::AsyncEngine(const StartSequence &startSequence)
     }
 }
 
-AsyncEngine::~AsyncEngine() noexcept { finish(); }
+Engine::~Engine() noexcept { finish(); }
 
-std::string AsyncEngine::getVersion()
+std::string Engine::getVersion()
 {
     std::stringstream ss;
     ss << "Tredzone C++ Simplx framework" << (int)TREDZONE_ENGINE_VERSION_MAJOR << "." << (int)TREDZONE_ENGINE_VERSION_MINOR;
@@ -523,32 +530,32 @@ std::string AsyncEngine::getVersion()
     return ss.str();
 }
 
-void AsyncEngine::finish() noexcept
+void Engine::finish() noexcept
 {
     nodeManager->shutdown();
     atomicSubAndFetch(&*regularActorsCoreCount, 1);
     nodeManager.reset();
 }
 
-const AsyncEngine::CoreSet &AsyncEngine::getCoreSet() const noexcept { return nodeManager->getCoreSet(); }
+const Engine::CoreSet &Engine::getCoreSet() const noexcept { return nodeManager->getCoreSet(); }
 
-size_t AsyncEngine::getEventAllocatorPageSizeByte() const noexcept { return nodeManager->getEventAllocatorPageSize(); }
+size_t Engine::getEventAllocatorPageSizeByte() const noexcept { return nodeManager->getEventAllocatorPageSize(); }
 
 #ifndef NDEBUG
-void AsyncEngine::debugActivateMemoryLeakBacktrace() noexcept
+void Engine::debugActivateMemoryLeakBacktrace() noexcept
 {
     AsyncNodeAllocator::debugActivateMemoryLeakBacktraceFlag = true;
 }
 #endif
 
 struct AsyncEngine_start_NodeThread
-{ // has to be declared out of AsyncEngine::start() to be used as a template parameter of
-  // AsyncEngine::start::NodeThreadList (GCC compliance)
-    const AsyncActor::CoreId coreId;
+{ // has to be declared out of Engine::start() to be used as a template parameter of
+  // Engine::start::NodeThreadList (GCC compliance)
+    const Actor::CoreId coreId;
     std::unique_ptr<AsyncNode::Thread> thread;
     CacheLineAlignedObject<AsyncNode> *node;
     AsyncEngine_start_NodeThread(const AsyncEngine_start_NodeThread &other) : coreId(other.coreId), node(0) {}
-    AsyncEngine_start_NodeThread(AsyncActor::CoreId pcoreId) : coreId(pcoreId), node(0) {}
+    AsyncEngine_start_NodeThread(Actor::CoreId pcoreId) : coreId(pcoreId), node(0) {}
     ~AsyncEngine_start_NodeThread()
     {
         if (node != 0)
@@ -559,7 +566,7 @@ struct AsyncEngine_start_NodeThread
     }
 };
 
-void AsyncEngine::start(const StartSequence &startSequence)
+void Engine::start(const StartSequence &startSequence)
 {
     struct NodeThreadList : std::list<AsyncEngine_start_NodeThread>
     {
@@ -606,7 +613,7 @@ void AsyncEngine::start(const StartSequence &startSequence)
             ilastService = i;
         }
     }
-    AsyncActor::ActorId previousServiceDestroyActorId;
+    Actor::ActorId previousServiceDestroyActorId;
     for (StartSequence::StarterChain::const_iterator i = startSequence.starterChain.begin(),
                                                      endi = startSequence.starterChain.end();
          i != endi; ++i)
@@ -620,7 +627,7 @@ void AsyncEngine::start(const StartSequence &startSequence)
         try
         {
             threadSetAffinity(coreId);
-            AsyncActor::ActorId serviceDestroyActorId =
+            Actor::ActorId serviceDestroyActorId =
                 i->onStart(*this, **inodeThread->node, previousServiceDestroyActorId, i == ilastService);
             if (i->isServiceFlag)
             {
@@ -654,16 +661,16 @@ void AsyncEngine::start(const StartSequence &startSequence)
     }
 }
 
-void AsyncEngine::threadStartHook(void *engine)
+void Engine::threadStartHook(void *engine)
 {
-    assert(AsyncEngine::currentEngineTLS.get() == 0);
-    AsyncEngine::currentEngineTLS.set(static_cast<AsyncEngine *>(engine));
+    assert(Engine::currentEngineTLS.get() == 0);
+    Engine::currentEngineTLS.set(static_cast<Engine *>(engine));
 }
 
-AsyncActor::ActorId AsyncEngine::newCore(CoreId coreId, bool isRedZone, NewCoreStarter &newCoreStarter)
+Actor::ActorId Engine::newCore(CoreId coreId, bool isRedZone, NewCoreStarter &newCoreStarter)
 {
     AsyncNode::Thread thread(coreId, isRedZone, redZoneParam, threadStackSizeByte, threadStartHook, this, 0);
-    AsyncActor::ActorId ret;
+    Actor::ActorId ret;
     CacheLineAlignedObject<AsyncNode> *node = 0;
     cpuset_type savedThreadAffinity = threadGetAffinity();
     try
@@ -690,9 +697,9 @@ AsyncActor::ActorId AsyncEngine::newCore(CoreId coreId, bool isRedZone, NewCoreS
     return ret;
 }
 
-AsyncEngine::CoreSet::CoreSet() noexcept : coreCount(0) {}
+Engine::CoreSet::CoreSet() noexcept : coreCount(0) {}
 
-void AsyncEngine::CoreSet::set(CoreId coreId)
+void Engine::CoreSet::set(CoreId coreId)
 {
     size_t i = 0;
     for (; i < coreCount && cores[i] != coreId; ++i)
@@ -700,7 +707,7 @@ void AsyncEngine::CoreSet::set(CoreId coreId)
     }
     if (i == coreCount)
     {
-        if (coreCount == (size_t)AsyncActor::MAX_NODE_COUNT)
+        if (coreCount == (size_t)Actor::MAX_NODE_COUNT)
         {
             throw TooManyCoresException();
         }
@@ -709,7 +716,7 @@ void AsyncEngine::CoreSet::set(CoreId coreId)
     }
 }
 
-AsyncEngine::CoreSet::NodeId AsyncEngine::CoreSet::index(CoreId coreId) const
+Engine::CoreSet::NodeId Engine::CoreSet::index(CoreId coreId) const
 {
     size_t i = 0;
     for (; i < coreCount && cores[i] != coreId; ++i)
@@ -722,7 +729,7 @@ AsyncEngine::CoreSet::NodeId AsyncEngine::CoreSet::index(CoreId coreId) const
     return (NodeId)i;
 }
 
-AsyncEngine::CoreId AsyncEngine::CoreSet::at(NodeId nodeId) const
+Engine::CoreId Engine::CoreSet::at(NodeId nodeId) const
 {
     if (nodeId >= coreCount)
     {
@@ -731,10 +738,10 @@ AsyncEngine::CoreId AsyncEngine::CoreSet::at(NodeId nodeId) const
     return cores[nodeId];
 }
 
-AsyncEngine::FullCoreSet::FullCoreSet()
+Engine::FullCoreSet::FullCoreSet()
 {
     size_t n = cpuGetCount();
-    if (n > (size_t)AsyncActor::MAX_NODE_COUNT)
+    if (n > (size_t)Actor::MAX_NODE_COUNT)
     {
         throw TooManyCoresException();
     }
@@ -747,7 +754,7 @@ AsyncEngine::FullCoreSet::FullCoreSet()
 /**
  * throw (std::bad_alloc)
  */
-AsyncEngine::StartSequence::StartSequence(const CoreSet &pcoreSet, int)
+Engine::StartSequence::StartSequence(const CoreSet &pcoreSet, int)
     : coreSet(pcoreSet), asyncNodeAllocator(new AsyncNodeAllocator), asyncExceptionHandler(0),
       asyncEngineCustomCoreActorFactory(0), asyncEngineCustomEventLoopFactory(0),
       eventAllocatorPageSizeByte(DEFAULT_EVENT_ALLOCATOR_PAGE_SIZE), threadStackSizeByte(0)
@@ -757,7 +764,7 @@ AsyncEngine::StartSequence::StartSequence(const CoreSet &pcoreSet, int)
     engineSuffix = s.str();
 }
 
-AsyncEngine::StartSequence::~StartSequence() noexcept
+Engine::StartSequence::~StartSequence() noexcept
 {
     while (!starterChain.empty())
     {
@@ -765,22 +772,22 @@ AsyncEngine::StartSequence::~StartSequence() noexcept
     }
 }
 
-AsyncActor::AllocatorBase AsyncEngine::StartSequence::getAllocator() const noexcept
+Actor::AllocatorBase Engine::StartSequence::getAllocator() const noexcept
 {
-    return AsyncActor::AllocatorBase(*asyncNodeAllocator);
+    return Actor::AllocatorBase(*asyncNodeAllocator);
 }
 
-void AsyncEngine::StartSequence::setRedZoneParam(const ThreadRealTimeParam &predZoneParam) noexcept
+void Engine::StartSequence::setRedZoneParam(const ThreadRealTimeParam &predZoneParam) noexcept
 {
     redZoneParam = predZoneParam;
 }
 
-const ThreadRealTimeParam &AsyncEngine::StartSequence::getRedZoneParam() const noexcept { return redZoneParam; }
+const ThreadRealTimeParam &Engine::StartSequence::getRedZoneParam() const noexcept { return redZoneParam; }
 
 /**
  * throw (std::bad_alloc)
  */
-void AsyncEngine::StartSequence::setRedZoneCore(CoreId coreId)
+void Engine::StartSequence::setRedZoneCore(CoreId coreId)
 {
     if (!isRedZoneCore(coreId))
     {
@@ -788,9 +795,9 @@ void AsyncEngine::StartSequence::setRedZoneCore(CoreId coreId)
     }
 }
 
-void AsyncEngine::StartSequence::setBlueZoneCore(CoreId coreId) noexcept { redZoneCoreIdList.remove(coreId); }
+void Engine::StartSequence::setBlueZoneCore(CoreId coreId) noexcept { redZoneCoreIdList.remove(coreId); }
 
-bool AsyncEngine::StartSequence::isRedZoneCore(CoreId coreId) const noexcept
+bool Engine::StartSequence::isRedZoneCore(CoreId coreId) const noexcept
 {
     RedZoneCoreIdList::const_iterator i = redZoneCoreIdList.begin(), endi = redZoneCoreIdList.end();
     for (; i != endi && *i != coreId; ++i)
@@ -799,56 +806,56 @@ bool AsyncEngine::StartSequence::isRedZoneCore(CoreId coreId) const noexcept
     return i != endi;
 }
 
-void AsyncEngine::StartSequence::setAsyncExceptionHandler(AsyncExceptionHandler &pasyncExceptionHandler) noexcept
+void Engine::StartSequence::setAsyncExceptionHandler(AsyncExceptionHandler &pasyncExceptionHandler) noexcept
 {
     asyncExceptionHandler = &pasyncExceptionHandler;
 }
 
-void AsyncEngine::StartSequence::setAsyncEngineCustomCoreActorFactory(
+void Engine::StartSequence::setAsyncEngineCustomCoreActorFactory(
     AsyncEngineCustomCoreActorFactory &pasyncEngineCustomCoreActorFactory) noexcept
 {
     asyncEngineCustomCoreActorFactory = &pasyncEngineCustomCoreActorFactory;
 }
 
-void AsyncEngine::StartSequence::setAsyncEngineCustomEventLoopFactory(
+void Engine::StartSequence::setAsyncEngineCustomEventLoopFactory(
     AsyncEngineCustomEventLoopFactory &pasyncEngineCustomEventLoopFactory) noexcept
 {
     asyncEngineCustomEventLoopFactory = &pasyncEngineCustomEventLoopFactory;
 }
 
-void AsyncEngine::StartSequence::setEventAllocatorPageSizeByte(size_t peventAllocatorPageSizeByte) noexcept
+void Engine::StartSequence::setEventAllocatorPageSizeByte(size_t peventAllocatorPageSizeByte) noexcept
 {
     eventAllocatorPageSizeByte = peventAllocatorPageSizeByte;
 }
 
-void AsyncEngine::StartSequence::setThreadStackSizeByte(size_t pthreadStackSizeByte) noexcept
+void Engine::StartSequence::setThreadStackSizeByte(size_t pthreadStackSizeByte) noexcept
 {
     threadStackSizeByte = pthreadStackSizeByte;
 }
 
-AsyncExceptionHandler *AsyncEngine::StartSequence::getAsyncExceptionHandler() const noexcept
+AsyncExceptionHandler *Engine::StartSequence::getAsyncExceptionHandler() const noexcept
 {
     return asyncExceptionHandler;
 }
 
-AsyncEngineCustomCoreActorFactory *AsyncEngine::StartSequence::getAsyncEngineCustomCoreActorFactory() const noexcept
+AsyncEngineCustomCoreActorFactory *Engine::StartSequence::getAsyncEngineCustomCoreActorFactory() const noexcept
 {
     return asyncEngineCustomCoreActorFactory;
 }
 
-AsyncEngineCustomEventLoopFactory *AsyncEngine::StartSequence::getAsyncEngineCustomEventLoopFactory() const noexcept
+AsyncEngineCustomEventLoopFactory *Engine::StartSequence::getAsyncEngineCustomEventLoopFactory() const noexcept
 {
     return asyncEngineCustomEventLoopFactory;
 }
 
-size_t AsyncEngine::StartSequence::getEventAllocatorPageSizeByte() const noexcept { return eventAllocatorPageSizeByte; }
+size_t Engine::StartSequence::getEventAllocatorPageSizeByte() const noexcept { return eventAllocatorPageSizeByte; }
 
-size_t AsyncEngine::StartSequence::getThreadStackSizeByte() const noexcept { return threadStackSizeByte; }
+size_t Engine::StartSequence::getThreadStackSizeByte() const noexcept { return threadStackSizeByte; }
 
 /**
  * throw (CoreSet::TooManyCoresException)
  */
-AsyncEngine::CoreSet AsyncEngine::StartSequence::getCoreSet() const
+Engine::CoreSet Engine::StartSequence::getCoreSet() const
 {
     CoreSet ret = coreSet;
     for (StarterChain::const_iterator i = starterChain.begin(), endi = starterChain.end(); i != endi; ++i)
@@ -858,11 +865,11 @@ AsyncEngine::CoreSet AsyncEngine::StartSequence::getCoreSet() const
     return ret;
 }
 
-void AsyncEngine::StartSequence::setEngineName(const char *pengineName) { engineName = pengineName; }
+void Engine::StartSequence::setEngineName(const char *pengineName) { engineName = pengineName; }
 
-const char *AsyncEngine::StartSequence::getEngineName() const noexcept { return engineName.c_str(); }
+const char *Engine::StartSequence::getEngineName() const noexcept { return engineName.c_str(); }
 
-void AsyncEngine::StartSequence::setEngineSuffix(const char *pengineSuffix) { engineSuffix = pengineSuffix; }
+void Engine::StartSequence::setEngineSuffix(const char *pengineSuffix) { engineSuffix = pengineSuffix; }
 
-const char *AsyncEngine::StartSequence::getEngineSuffix() const noexcept { return engineSuffix.c_str(); }
+const char *Engine::StartSequence::getEngineSuffix() const noexcept { return engineSuffix.c_str(); }
 }
