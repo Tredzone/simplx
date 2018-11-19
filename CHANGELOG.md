@@ -2,7 +2,7 @@
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) </br>
 Date format: YYYY-MM-DD </br>
-Sub-sections: Added, Removed, Depreceted </br>
+Sub-sections: Added, Removed, Deprecated </br>
 
 <!---
 ## [Unreleased]
@@ -23,7 +23,7 @@ Sub-sections: Added, Removed, Depreceted </br>
 - AsyncActor -> Actor (alias removed)
 - AsyncEngine -> Engine (alias removed)
 - namespace trz -> tredzone (alias removed)
-- TimerProxy::onTimeOut() -> TimerProxy::onTimeout()  (note casing!)
+- TimerProxy::onTimeOut(const tredzone::Time&) -> TimerProxy::onTimeout(const tredzone::DateTime&)  (note casing!)
 - bool TREDZONE_SDK_COMPATIBLE() -> removed
 
 
