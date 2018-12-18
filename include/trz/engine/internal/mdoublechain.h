@@ -22,7 +22,10 @@ template <class _Item, unsigned _CHAIN_COUNT = 1u, unsigned _CHAIN_ID = 0u,
           class _ItemAccessor = MultiDoubleChainItemAccessor<_Item, _CHAIN_COUNT>>
 class MultiDoubleChain;
 
-template <class _Item, unsigned _CHAIN_COUNT> struct MultiDoubleChainItemAccessor
+//---- Multi-Double-Chain ITEM ACCESSOR ----------------------------------------
+
+template <class _Item, unsigned _CHAIN_COUNT>
+struct MultiDoubleChainItemAccessor
 {
     inline static _Item *getItem(MultiDoubleChainLink<_Item, _CHAIN_COUNT> *link) noexcept
     {
@@ -42,7 +45,9 @@ template <class _Item, unsigned _CHAIN_COUNT> struct MultiDoubleChainItemAccesso
     }
 };
 
-template <class _Item>
+//---- Multi-Double-Chain LINK -------------------------------------------------
+
+template<class _Item>
 class MultiDoubleChainLink<_Item, 1u>
 {
   public:
@@ -64,7 +69,10 @@ class MultiDoubleChainLink<_Item, 1u>
     MultiDoubleChainLink *next;
 };
 
-template <class _Item> class MultiDoubleChainLinkAccessor<_Item, 1u, 0u>
+//---- Multi-Double-Chain LINK ACCESSOR ----------------------------------------
+
+template<class _Item>
+class MultiDoubleChainLinkAccessor<_Item, 1u, 0u>
 {
     template <class, unsigned, unsigned, class> friend class MultiDoubleChain;
     inline static MultiDoubleChainLink<_Item, 1u> *getPrevious(MultiDoubleChainLink<_Item, 1u> *item)
@@ -83,7 +91,10 @@ template <class _Item> class MultiDoubleChainLinkAccessor<_Item, 1u, 0u>
     }
 };
 
-template <class _Item> class MultiDoubleChainLink<_Item, 2u>
+//---- Multi-Double-Chain LINK -------------------------------------------------
+
+template<class _Item>
+class MultiDoubleChainLink<_Item, 2u>
 {
   public:
     template <unsigned _CHAIN_ID, class _ItemAccessor = MultiDoubleChainItemAccessor<_Item, 2u>>
@@ -105,7 +116,10 @@ template <class _Item> class MultiDoubleChainLink<_Item, 2u>
     MultiDoubleChainLink *next1;
 };
 
-template <class _Item> class MultiDoubleChainLinkAccessor<_Item, 2u, 0u>
+//---- Multi-Double-Chain LINK ACCESSOR (2/0 specialization) -------------------
+
+template<class _Item>
+class MultiDoubleChainLinkAccessor<_Item, 2u, 0u>
 {
     template <class, unsigned, unsigned, class> friend class MultiDoubleChain;
     inline static MultiDoubleChainLink<_Item, 2u> *getPrevious(MultiDoubleChainLink<_Item, 2u> *item)
@@ -127,7 +141,10 @@ template <class _Item> class MultiDoubleChainLinkAccessor<_Item, 2u, 0u>
     }
 };
 
-template <class _Item> class MultiDoubleChainLinkAccessor<_Item, 2u, 1u>
+//---- Multi-Double-Chain LINK ACCESSOR (2/1 specialization) -------------------
+
+template<class _Item>
+class MultiDoubleChainLinkAccessor<_Item, 2u, 1u>
 {
     template <class, unsigned, unsigned, class> friend class MultiDoubleChain;
     inline static MultiDoubleChainLink<_Item, 2u> *getPrevious(MultiDoubleChainLink<_Item, 2u> *item)
@@ -148,6 +165,8 @@ template <class _Item> class MultiDoubleChainLinkAccessor<_Item, 2u, 1u>
         item->next1 = next;
     }
 };
+
+//---- Multi-Double-Chain ------------------------------------------------------
 
 template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAccessor>
 class MultiDoubleChain
@@ -199,8 +218,8 @@ class MultiDoubleChain
     MultiDoubleChain &operator=(const MultiDoubleChain &) = delete; // illegal (can not copy, only move)
 };
 
-template <class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAccessor>
-template <class _Chain, class _Value>
+template<class _Item, unsigned _CHAIN_COUNT, unsigned _CHAIN_ID, class _ItemAccessor>
+template<class _Chain, class _Value>
 class MultiDoubleChain<_Item, _CHAIN_COUNT, _CHAIN_ID, _ItemAccessor>::iterator_base
 {
   public:

@@ -50,11 +50,9 @@ typedef pthread_cond_t signal_t;
 typedef pthread_t thread_t;
 typedef pthread_key_t tls_t;
 
-#ifndef NDEBUG
-// debug
 std::vector<std::string> debugBacktrace(const uint8_t stackTraceSize = 32) noexcept;
+
 std::string demangleFromSymbolName(char *) noexcept;
-#endif
 
 // symbols
 std::string cppDemangledTypeInfoName(const std::type_info &);
@@ -184,7 +182,9 @@ uint64_t getTSC()
     __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     return (d << 32) | a;
 #else
-#error getTSC(): unsupported architecture
+    uint32_t cc = 0;
+    __asm__ volatile ("mrc p15, 0, %0, c9, c13, 0":"=r" (cc));
+    return (uint64_t)cc; 
 #endif
 }
 
@@ -305,4 +305,24 @@ void tlsSet(tls_t key, void *value)
     }
 }
 
-} // namespace
+} // namespace tredzone
+
+/**
+ * @fn std::vector<std::string> debugBacktrace(const uint8_t stackTraceSize = 32) noexcept
+ * @brief Retrieve a debug backtrace
+ * @param stackTraceSize by default is set to 32. This corresponds to the backtrace's maximum size.
+ * @return string vector containing the backtrace.
+ */
+/**
+ * @fn std::string demangleFromSymbolName(char*) noexcept
+ * @brief Demangle symbol from its mangled name.
+ * @param Mangled symbol
+ * @return Demangled symbol
+ */
+/**
+ * @fn std::string cppDemangledTypeInfoName(const std::type_info&)
+ * @brief Demangle symbol from its type_info
+ * @param type_info corresponding to symbol
+ * @return Demangled symbol
+ */
+

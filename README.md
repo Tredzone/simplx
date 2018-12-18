@@ -4,7 +4,7 @@ Simplx is a C++ development framework for building reliable cache-friendly distr
 
 Simplx was developed by [Tredzone SAS](http://www.tredzone.com). We provide software technology solutions and services dedicated to high-performance real-time processing. Our technology enables low and predictable latency, scalability, and high throughput. We also offer support contracts and enterprise tools for monitoring, profiling, debugging, server clustering under commercial licenses.
 
-Simplx is used at the Paris Stock Exchange by Euronext's market exchange platform, called *Optiq*, and has been successfully deployed since November 2016.
+Simplx is used at the Paris stock exchange by Euronext's market exchange platform, called "Optiq", and has been successfully deployed since November 2016.
 
 Tredzone was founded in 2013 and operates in France, the UK and US.
 
@@ -25,6 +25,15 @@ It requires either C++ 11, 14 or 17 and the pthreads library. Support for Window
 Simplx is open-sourced under the Apache 2.0 license, please see the [accompanying License](./LICENSE).  
 
 
+## Enterprise License
+
+If you have a commercial enterprise license with us, including appropriate github access credentials, you may fetch those components with:
+
+```
+git submodule update --init enterprise
+```
+
+
 ## Getting Started
 
 About a dozen tutorials are included here, please see the [Tutorials README](./tutorials/README.md).
@@ -35,7 +44,7 @@ To build all tutorials, open a terminal at the root of the repository and type:
 mkdir build
 cd build
 cmake ..
-make
+make -j8
 ```
 
 
@@ -44,11 +53,10 @@ make
 To build and run the unit tests, which depend on the Google Test submodule, open a terminal at the root of the repository and type:
 
 ```
-git submodule update --init --recursive
-mkdir tbuild
-cd tbuild
+git submodule update --init thirdparty/googletest
+mkdir tbuild && cd tbuild
 cmake -DBUILD_TEST=1 ..
-make
+make -j8
 ```
 
 to then run the unit tests type:
@@ -57,8 +65,19 @@ to then run the unit tests type:
 make test
 ```
 
-There is also a Bash [script](./test/docker_test.sh) that'll unit-test all above-mentionned versions of gcc and clang under Docker. The 1st run takes a while to download the Docker images.
 
+## Docker
+
+There's a Bash that'll compile the tutorials and run the unit tests under all above-mentionned versions of gcc and clang under Docker:
+
+```
+./test/docker_test.sh
+```
+
+If a compilation or unit test failure occurs, the script will stop and report the error.
+
+The 1st run takes a while to download the Docker images, as per usual with Docker.
+ 
 
 ## Documentation
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(sdk)
+project(simplx)
 
 # modules
 include(FindThreads)
@@ -11,6 +11,8 @@ set( MEMORYCHECK_COMMAND_OPTIONS "--trace-children=yes --leak-check=full")
 INCLUDE(Dart)
 
 option(BUILD_TEST "BUILD_TEST" OFF)
+option(BUILD_CONNECTORS "BUILD_CONNECTORS" OFF)
+option(BUILD_CONNECTORS_WITH_SAMPLES "BUILD_CONNECTORS_WITH_SAMPLES" OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -20,7 +22,11 @@ message("> CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 # set C++ compiler options
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-	set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wpedantic -Werror -Wno-deprecated -Woverloaded-virtual -Wsign-promo  -fstrict-aliasing -Wno-noexcept-type -Wstrict-aliasing=1 -fdiagnostics-color=auto")
+	if(${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER 4.9)
+		set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wpedantic -Werror -Wno-deprecated -Woverloaded-virtual -Wsign-promo -Wno-noexcept-type -fdiagnostics-color=auto")
+	else ()
+		set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wpedantic -Werror -Wno-deprecated -Woverloaded-virtual -Wsign-promo -Wno-noexcept-type")
+	endif ()
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0") # -g already defined
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
@@ -65,6 +71,10 @@ add_subdirectory(src/engine)
 #Timer
 add_subdirectory(src/util)
 
+#connectors
+if(BUILD_CONNECTORS OR BUILD_CONNECTORS_WITH_SAMPLES)
+	add_subdirectory(plugin/connectors)
+endif()
 
 
 #Tutorial

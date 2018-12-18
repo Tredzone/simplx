@@ -9,6 +9,10 @@
 
 #include <iostream>
 
+/**
+ * @def TRZ_DEBUG_BREAK
+ * @brief break to debugger upon fatal exception
+ */
 #ifndef TRZ_DEBUG_BREAK
     // wasn't user-defined
     #ifndef NDEBUG
@@ -24,16 +28,6 @@
     #define TRZ_DEBUG(x) x
 #else
     #define TRZ_DEBUG(x)
-#endif
-
-/*
- * Detect c++11 and set macro
- * cf: http://en.cppreference.com/w/cpp/preprocessor/replace
- */
-#if __cplusplus > 199711L
-    #define TREDZONE_CPP11_SUPPORT
-#else
-    #error compiler needs to support C++11
 #endif
 
 /**
@@ -67,7 +61,3 @@
  */
 #define TREDZONE_STRING(x) #x
 
-/**
- * @def noexcept
- * @brief Will be defined to 'noexcept' if C++11 is detect, otherwise it will 'throw()'
- */

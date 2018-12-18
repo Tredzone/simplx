@@ -17,20 +17,20 @@
 namespace tredzone
 {
 
-struct AsyncInitializerExceptionHandler
+struct InitializerExceptionHandler
 {
-    virtual ~AsyncInitializerExceptionHandler() noexcept {}
+    virtual ~InitializerExceptionHandler() noexcept {}
     virtual void onException(const std::exception *) noexcept = 0;
 };
 
-template <class _InitData> class AsyncInitializerStartSequence : public Engine::StartSequence
+template <class _InitData> class InitializerStartSequence : public Engine::StartSequence
 {
   public:
     class Callback;
     struct Actor;
     template <class _Init>
-    AsyncInitializerStartSequence(const _Init &, const Engine::CoreSet & = Engine::FullCoreSet(),
-                                  AsyncInitializerExceptionHandler * = 0,
+    InitializerStartSequence(const _Init &, const Engine::CoreSet & = Engine::FullCoreSet(),
+                                  InitializerExceptionHandler * = 0,
                                   int = (Engine::checkRuntimeCompatibility(true), 0));
 
 #ifndef NDEBUG
@@ -88,7 +88,7 @@ template <class _InitData> class AsyncInitializerStartSequence : public Engine::
     typedef CacheLineAlignedObject<InitData> CacheAlignedInitData;
     std::unique_ptr<CacheAlignedInitData> initDataAutoPtr;
     CacheAlignedInitData *initData;
-    AsyncInitializerExceptionHandler *exceptionHandler;
+    InitializerExceptionHandler *exceptionHandler;
 
 #ifndef NDEBUG
     static sig_atomic_t debugCoreInitializerSingletonCount(int inc)
@@ -112,7 +112,7 @@ template <class _InitData> class AsyncInitializerStartSequence : public Engine::
 };
 
 template <class _InitData>
-class AsyncInitializerStartSequence<_InitData>::Callback : private MultiDoubleChainLink<Callback>
+class InitializerStartSequence<_InitData>::Callback : private MultiDoubleChainLink<Callback>
 {
   public:
     inline Callback(::tredzone::Actor &);
@@ -134,7 +134,7 @@ class AsyncInitializerStartSequence<_InitData>::Callback : private MultiDoubleCh
     }
 
   private:
-    friend class AsyncInitializerStartSequence;
+    friend class InitializerStartSequence;
     struct Chain : Callback::template DoubleChain<0u, Chain>
     {
         inline static Callback *getItem(MultiDoubleChainLink<Callback> *link) noexcept
@@ -160,14 +160,14 @@ class AsyncInitializerStartSequence<_InitData>::Callback : private MultiDoubleCh
 };
 
 template <class _InitData>
-struct AsyncInitializerStartSequence<_InitData>::Actor : ::tredzone::Actor,
-                                                         AsyncInitializerStartSequence<_InitData>::Callback
+struct InitializerStartSequence<_InitData>::Actor : ::tredzone::Actor,
+                                                         InitializerStartSequence<_InitData>::Callback
 {
-    inline Actor() : AsyncInitializerStartSequence<_InitData>::Callback(static_cast<::tredzone::Actor &>(*this)) {}
+    inline Actor() : InitializerStartSequence<_InitData>::Callback(static_cast<::tredzone::Actor &>(*this)) {}
 };
 
 template <class _InitData>
-struct AsyncInitializerStartSequence<_InitData>::CoreInitializerSingleton : ::tredzone::Actor,
+struct InitializerStartSequence<_InitData>::CoreInitializerSingleton : ::tredzone::Actor,
                                                                             ::tredzone::Actor::Callback
 {
     struct HandOverEvent : ::tredzone::Actor::Event
@@ -175,11 +175,11 @@ struct AsyncInitializerStartSequence<_InitData>::CoreInitializerSingleton : ::tr
     };
 
     CacheAlignedInitData *initData;
-    AsyncInitializerExceptionHandler *exceptionHandler;
-    typename AsyncInitializerStartSequence::Callback::Chain initializeInProgressCallbackChain;
+    InitializerExceptionHandler *exceptionHandler;
+    typename InitializerStartSequence::Callback::Chain initializeInProgressCallbackChain;
     bool destroyFlag;
 
-    CoreInitializerSingleton(AsyncInitializerStartSequence *startSequence = 0) : destroyFlag(true)
+    CoreInitializerSingleton(InitializerStartSequence *startSequence = 0) : destroyFlag(true)
     {
         if (startSequence != 0)
         {
@@ -195,22 +195,22 @@ struct AsyncInitializerStartSequence<_InitData>::CoreInitializerSingleton : ::tr
             destroyFlag = false;
         }
 #ifndef NDEBUG
-        AsyncInitializerStartSequence::debugCoreInitializerSingletonCount(1);
+        InitializerStartSequence::debugCoreInitializerSingletonCount(1);
 #endif
     }
 #ifndef NDEBUG
     virtual ~CoreInitializerSingleton() noexcept
     {
-        AsyncInitializerStartSequence::debugCoreInitializerSingletonCount(-1);
+        InitializerStartSequence::debugCoreInitializerSingletonCount(-1);
     }
 #endif
     void onEvent(const HandOverEvent &) { onCallback(); }
     void onCallback() noexcept
     {
-        typename AsyncInitializerStartSequence::Callback::Chain local;
+        typename InitializerStartSequence::Callback::Chain local;
         while (!initializeInProgressCallbackChain.empty())
         {
-            typename AsyncInitializerStartSequence::Callback *callback = initializeInProgressCallbackChain.pop_front();
+            typename InitializerStartSequence::Callback *callback = initializeInProgressCallbackChain.pop_front();
             (callback->withinCallbackChain = &local)->push_back(callback);
             try
             {
@@ -242,7 +242,7 @@ struct AsyncInitializerStartSequence<_InitData>::CoreInitializerSingleton : ::tr
         local.push_back(initializeInProgressCallbackChain);
         while (!local.empty())
         {
-            typename AsyncInitializerStartSequence::Callback *callback = local.pop_front();
+            typename InitializerStartSequence::Callback *callback = local.pop_front();
             (callback->withinCallbackChain = &initializeInProgressCallbackChain)->push_back(callback);
         }
         const ::tredzone::Actor::ActorId *nextCoreInitializerSingleton =
@@ -286,17 +286,17 @@ struct AsyncInitializerStartSequence<_InitData>::CoreInitializerSingleton : ::tr
     }
     static void onCallbackExceptionDefault(const std::exception *e) noexcept
     {
-        std::cout << "tredzone::AsyncInitializerStartSequence::Callback::onInitialize() threw an exception ["
+        std::cout << "tredzone::InitializerStartSequence::Callback::onInitialize() threw an exception ["
                   << (e == 0 ? "?" : e->what()) << ']' << std::endl;
         exit(-1);
     }
 };
 
-template <class _InitData> struct AsyncInitializerStartSequence<_InitData>::CoreInitializer : ::tredzone::Actor
+template <class _InitData> struct InitializerStartSequence<_InitData>::CoreInitializer : ::tredzone::Actor
 {
     ActorReference<CoreInitializerSingleton> coreInitializerSingleton;
 
-    CoreInitializer(AsyncInitializerStartSequence *startSequence)
+    CoreInitializer(InitializerStartSequence *startSequence)
         : coreInitializerSingleton(newReferencedSingletonActor<CoreInitializerSingleton>(startSequence))
     {
         requestDestroy();
@@ -304,7 +304,7 @@ template <class _InitData> struct AsyncInitializerStartSequence<_InitData>::Core
 };
 
 template <class _InitData>
-AsyncInitializerStartSequence<_InitData>::Callback::Callback(::tredzone::Actor &actor)
+InitializerStartSequence<_InitData>::Callback::Callback(::tredzone::Actor &actor)
     : coreInitializerSingleton(actor.::tredzone::Actor::newReferencedSingletonActor<CoreInitializerSingleton>()),
       withinCallbackChain(&coreInitializerSingleton->initializeInProgressCallbackChain)
 {
@@ -313,8 +313,8 @@ AsyncInitializerStartSequence<_InitData>::Callback::Callback(::tredzone::Actor &
 
 template <class _InitData>
 template <class _Init>
-AsyncInitializerStartSequence<_InitData>::AsyncInitializerStartSequence(
-    const _Init &pinit, const Engine::CoreSet &pcoreSet, AsyncInitializerExceptionHandler *pexceptionHandler, int)
+InitializerStartSequence<_InitData>::InitializerStartSequence(
+    const _Init &pinit, const Engine::CoreSet &pcoreSet, InitializerExceptionHandler *pexceptionHandler, int)
     : Engine::StartSequence(pcoreSet, 0), initDataAutoPtr(new CacheAlignedInitData(pinit)),
       initData(initDataAutoPtr.get()), exceptionHandler(pexceptionHandler)
 {

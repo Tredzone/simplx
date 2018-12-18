@@ -45,7 +45,8 @@ template <class _NodesHandle> struct Parallel<_NodesHandle>::NodeInUseException 
     virtual const char *what() const noexcept { return "tredzone::Parallel::NodeInUseException"; }
 };
 
-template <class _NodesHandle> class Parallel<_NodesHandle>::Node
+template <class _NodesHandle>
+class Parallel<_NodesHandle>::Node
 {
   public:
     typedef std::bitset<_NodesHandle::MAX_SIZE> WriteSignalBitSet;

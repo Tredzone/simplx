@@ -85,7 +85,7 @@ void testUndelivered()
 
 struct SimpleServiceActor : public tredzone::Actor
 {
-    struct Tag : tredzone::AsyncService
+    struct Tag : tredzone::Service
     {
     };
 
@@ -171,13 +171,13 @@ void testActorReference()
 
 struct ActorMultipleReferenceTest : tredzone::Actor
 {
-    struct Tag1 : tredzone::AsyncService
+    struct Tag1 : tredzone::Service
     {
     };
-    struct Tag2 : tredzone::AsyncService
+    struct Tag2 : tredzone::Service
     {
     };
-    struct Tag3 : tredzone::AsyncService
+    struct Tag3 : tredzone::Service
     {
     };
     struct DestroyFlags
@@ -462,7 +462,7 @@ class TestDetectionOfEventLoopEndActor : public tredzone::Actor, public tredzone
 
 void testDetectionOfEventLoopEnd(ActorIds &actorIds, const AbstractActorReferenceTreeFactory &treeFactory)
 {
-    struct CustumCoreFactory : tredzone::AsyncEngineCustomCoreActorFactory
+    struct CustumCoreFactory : tredzone::EngineCustomCoreActorFactory
     {
         ActorIds &actorIds;
         CustumCoreFactory(ActorIds &actorIds) : actorIds(actorIds) {}
@@ -476,7 +476,7 @@ void testDetectionOfEventLoopEnd(ActorIds &actorIds, const AbstractActorReferenc
 
     CustumCoreFactory custumCoreFactory(actorIds);
     tredzone::Engine::StartSequence startSequence;
-    startSequence.setAsyncEngineCustomCoreActorFactory(custumCoreFactory);
+    startSequence.setEngineCustomCoreActorFactory(custumCoreFactory);
     startSequence.addServiceActor<ActorMultipleReferenceTest::Tag1, ActorIds::Actor>(0, &actorIds);
     startSequence.addActor<TestDetectionOfEventLoopEndActor>(
         0, TestDetectionOfEventLoopEndActor::Init(&actorIds, &treeFactory));

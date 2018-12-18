@@ -4,3 +4,6 @@ set (TARGET_NAME util)
 
 add_subdirectory(timer)
 
+# not currently compiling
+# add_subdirectory(logger)
+

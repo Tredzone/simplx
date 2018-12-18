@@ -11,7 +11,7 @@
 namespace tredzone
 {
 
-class AsyncEngineToEngineConnector::Singleton : public Actor, public Actor::Callback
+class EngineToEngineConnector::Singleton : public Actor, public Actor::Callback
 {
   public:
     inline void unregisterConnection(Actor::NodeConnection &nodeConnection) noexcept
@@ -112,7 +112,7 @@ class AsyncEngineToEngineConnector::Singleton : public Actor, public Actor::Call
     }
 };
 
-AsyncEngineToEngineConnector::AsyncEngineToEngineConnector(Actor &actor)
+EngineToEngineConnector::EngineToEngineConnector(Actor &actor)
     : asyncNode(*actor.asyncNode), nodeId(asyncNode.id), nodeConnectionId(0), nodeConnection(0),
       peerEngineName(Actor::AllocatorBase(asyncNode)), peerEngineSuffix(Actor::AllocatorBase(asyncNode)),
       singleton(actor.newReferencedSingletonActor<Singleton>()), innerActor(actor.newReferencedActor<InnerActor>(this)),
@@ -124,16 +124,16 @@ AsyncEngineToEngineConnector::AsyncEngineToEngineConnector(Actor &actor)
     }
 }
 
-AsyncEngineToEngineConnector::~AsyncEngineToEngineConnector() noexcept
+EngineToEngineConnector::~EngineToEngineConnector() noexcept
 {
     innerActor->connector = 0;
     unregisterConnection();
     assert(nodeConnection == 0);
 }
 
-void AsyncEngineToEngineConnector::onConnectionServiceFailure() {}
+void EngineToEngineConnector::onConnectionServiceFailure() {}
 
-AsyncEngineToEngineConnector::ServiceEntryVector AsyncEngineToEngineConnector::getServiceVector() const
+EngineToEngineConnector::ServiceEntryVector EngineToEngineConnector::getServiceVector() const
 {
     const Engine::ServiceIndex &serviceIndex = Engine::getEngine().getServiceIndex();
     size_t n = 0;
@@ -157,11 +157,11 @@ AsyncEngineToEngineConnector::ServiceEntryVector AsyncEngineToEngineConnector::g
     return ret;
 }
 
-void AsyncEngineToEngineConnector::registerConnection(const char *ppeerEngineName, const char *ppeerEngineSuffix,
+void EngineToEngineConnector::registerConnection(const char *ppeerEngineName, const char *ppeerEngineSuffix,
                                                       const ServiceEntryVector &serviceEntryVector,
                                                       OnOutboundEventFn onOutboundEventFn,
                                                       OnInboundUndeliveredEventFn onInboundUndeliveredEventFn,
-                                                      bool isAsyncEngineToEngineSharedMemoryConnectorFlag,
+                                                      bool isEngineToEngineSharedMemoryConnectorFlag,
                                                       e2econnector::connection_distance_type serialConnectionDistance)
 {
     unregisterConnection();
@@ -179,7 +179,7 @@ void AsyncEngineToEngineConnector::registerConnection(const char *ppeerEngineNam
     innerActor->registerConnectionService(Actor::ActorId::RouteId(nodeId, asyncNode.lastNodeConnectionId + 1,
                                                                        asyncNode.freeNodeConnectionChain.front()),
                                           ppeerEngineName, ppeerEngineSuffix,
-                                          isAsyncEngineToEngineSharedMemoryConnectorFlag, serialConnectionDistance,
+                                          isEngineToEngineSharedMemoryConnectorFlag, serialConnectionDistance,
                                           serviceEntryVector);
     nodeConnection = asyncNode.freeNodeConnectionChain.pop_front();
     asyncNode.inUseNodeConnectionChain.push_back(nodeConnection);
@@ -187,10 +187,10 @@ void AsyncEngineToEngineConnector::registerConnection(const char *ppeerEngineNam
     nodeConnection->nodeConnectionId = nodeConnectionId = ++asyncNode.lastNodeConnectionId;
     nodeConnection->onOutboundEventFn = onOutboundEventFn;
     nodeConnection->onInboundUndeliveredEventFn = onInboundUndeliveredEventFn;
-    nodeConnection->isAsyncEngineToEngineSharedMemoryConnectorFlag = isAsyncEngineToEngineSharedMemoryConnectorFlag;
+    nodeConnection->isEngineToEngineSharedMemoryConnectorFlag = isEngineToEngineSharedMemoryConnectorFlag;
 }
 
-void AsyncEngineToEngineConnector::unregisterConnection() noexcept
+void EngineToEngineConnector::unregisterConnection() noexcept
 {
     if (nodeConnection != 0)
     {
@@ -206,12 +206,12 @@ void AsyncEngineToEngineConnector::unregisterConnection() noexcept
     }
 }
 
-AsyncEngineToEngineConnector::InnerActor::InnerActor(AsyncEngineToEngineConnector *connector) : connector(connector)
+EngineToEngineConnector::InnerActor::InnerActor(EngineToEngineConnector *connector) : connector(connector)
 {
     registerUndeliveredEventHandler<e2econnector::ConnectorRegisterEvent>(*this);
 }
 
-void AsyncEngineToEngineConnector::InnerActor::registerConnectionService(
+void EngineToEngineConnector::InnerActor::registerConnectionService(
     const Actor::ActorId::RouteId &pconnectionRouteId, const char *pengineName, const char *pengineSuffix,
     bool isSharedMemory, e2econnector::connection_distance_type serialConnectionDistance,
     const ServiceEntryVector &serviceEntryVector)
@@ -222,7 +222,7 @@ void AsyncEngineToEngineConnector::InnerActor::registerConnectionService(
     }
     const Engine::ServiceIndex &serviceIndex = Engine::getEngine().getServiceIndex();
     const ActorId &connectionServiceActorId = serviceIndex.getServiceActorId<service::E2ERoute>();
-    assert(connectionServiceActorId != tredzone::null); // tested at AsyncEngineToEngineConnector ctor
+    assert(connectionServiceActorId != tredzone::null); // tested at EngineToEngineConnector ctor
     if (connectionServiceActorId != tredzone::null)
     {
         Event::Pipe pipe(*this, connectionServiceActorId);
@@ -263,7 +263,7 @@ void AsyncEngineToEngineConnector::InnerActor::registerConnectionService(
     connectionRouteId = pconnectionRouteId;
 }
 
-void AsyncEngineToEngineConnector::InnerActor::unregisterConnectionService() noexcept
+void EngineToEngineConnector::InnerActor::unregisterConnectionService() noexcept
 {
     assert(connectionRouteId != tredzone::null);
     assert(!Actor::Callback::isRegistered());
@@ -289,7 +289,7 @@ void AsyncEngineToEngineConnector::InnerActor::unregisterConnectionService() noe
     }
 }
 
-void AsyncEngineToEngineConnector::InnerActor::onUndeliveredEvent(const e2econnector::ConnectorRegisterEvent &event)
+void EngineToEngineConnector::InnerActor::onUndeliveredEvent(const e2econnector::ConnectorRegisterEvent &event)
 {
     if (connector != 0 && event.routeId == connector->getRouteId())
     {
@@ -297,9 +297,9 @@ void AsyncEngineToEngineConnector::InnerActor::onUndeliveredEvent(const e2econne
     }
 }
 
-void AsyncEngineToEngineConnector::InnerActor::onCallback() noexcept { unregisterConnectionService(); }
+void EngineToEngineConnector::InnerActor::onCallback() noexcept { unregisterConnectionService(); }
 
-AsyncEngineToEngineConnector::ServiceActor::ServiceActor() : eventHandler(*this)
+EngineToEngineConnector::ServiceActor::ServiceActor() : eventHandler(*this)
 {
     registerEventHandler<e2econnector::ConnectorRegisterEvent>(eventHandler);
     registerEventHandler<e2econnector::ConnectorUnregisterEvent>(eventHandler);
@@ -307,16 +307,16 @@ AsyncEngineToEngineConnector::ServiceActor::ServiceActor() : eventHandler(*this)
     registerUndeliveredEventHandler<e2econnector::SingletonClientEngineEvent>(eventHandler);
 }
 
-AsyncEngineToEngineConnector::ServiceActor::~ServiceActor() noexcept {}
+EngineToEngineConnector::ServiceActor::~ServiceActor() noexcept {}
 
-AsyncEngineToEngineConnector::ServiceActor::EventHandler::EventHandler(ServiceActor &actor)
+EngineToEngineConnector::ServiceActor::EventHandler::EventHandler(ServiceActor &actor)
     : serviceActor(actor), lastEngineId(0), engineEntryList(actor.getAllocator()),
       subscriberNodeEntryVector(Engine::getEngine().getCoreSet().size(), SubscriberNodeEntry(actor),
                                 actor.getAllocator())
 {
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
+void EngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     const e2econnector::ConnectorRegisterEvent &event)
 {
     EngineEntry *engineEntry;
@@ -397,7 +397,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     notifySubscribers(*engineEntry);
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
+void EngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     const e2econnector::ConnectorUnregisterEvent &event)
 {
     for (EngineEntryList::iterator iengine = engineEntryList.begin(), endiengine = engineEntryList.end();
@@ -413,7 +413,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     }
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
+void EngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     const e2econnector::SingletonClientSubscriptionEvent &event)
 {
     assert(event.clientNodeId < MAX_NODE_COUNT);
@@ -456,7 +456,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onEvent(
     }
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onUndeliveredEvent(
+void EngineToEngineConnector::ServiceActor::EventHandler::onUndeliveredEvent(
     const e2econnector::SingletonClientEngineEvent &event)
 {
     NodeId clientNodeId = singletonClientNodeId(event.getDestinationActorId());
@@ -485,7 +485,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onUndeliveredEven
     }
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onCallback() noexcept
+void EngineToEngineConnector::ServiceActor::EventHandler::onCallback() noexcept
 {
     try
     {
@@ -594,7 +594,7 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::onCallback() noex
 }
 
 Actor::NodeId
-AsyncEngineToEngineConnector::ServiceActor::EventHandler::singletonClientNodeId(const ActorId &clientActorId) const
+EngineToEngineConnector::ServiceActor::EventHandler::singletonClientNodeId(const ActorId &clientActorId) const
     noexcept
 {
     SubscriberNodeEntryVector::const_iterator i = subscriberNodeEntryVector.begin(),
@@ -605,7 +605,7 @@ AsyncEngineToEngineConnector::ServiceActor::EventHandler::singletonClientNodeId(
     return i != endi ? i->nodeId : (NodeId)MAX_NODE_COUNT;
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::EventHandler::singletonClientUnsubscribe(NodeId nodeId) noexcept
+void EngineToEngineConnector::ServiceActor::EventHandler::singletonClientUnsubscribe(NodeId nodeId) noexcept
 {
     assert(nodeId < MAX_NODE_COUNT);
     SubscriberNodeEntryVector::iterator isubscriber = subscriberNodeEntryVector.begin(),
@@ -639,16 +639,16 @@ void AsyncEngineToEngineConnector::ServiceActor::EventHandler::singletonClientUn
     }
 }
 
-AsyncEngineToEngineConnector::ServiceActor::Proxy::Proxy(Actor &actor)
+EngineToEngineConnector::ServiceActor::Proxy::Proxy(Actor &actor)
     : singletonInnerActor(actor.newReferencedSingletonActor<SingletonInnerActor>()),
       proxyWeakReference((singletonInnerActor->proxyWeakReferenceList.push_back(ProxyWeakReference(this)),
                           singletonInnerActor->proxyWeakReferenceList.back()))
 {
 }
 
-AsyncEngineToEngineConnector::ServiceActor::Proxy::~Proxy() noexcept { proxyWeakReference.proxy = 0; }
+EngineToEngineConnector::ServiceActor::Proxy::~Proxy() noexcept { proxyWeakReference.proxy = 0; }
 
-AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::SingletonInnerActor()
+EngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::SingletonInnerActor()
     : proxyWeakReferenceList(getAllocator()), engineInfoByIdMap(EngineInfoByIdMap::key_compare(), getAllocator())
 {
     registerEventHandler<e2econnector::SingletonClientEngineEvent>(*this);
@@ -659,7 +659,7 @@ AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::Singleto
     singletonClientSubscriptionEvent.unsubscribeFlag = false;
 }
 
-AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::~SingletonInnerActor() noexcept
+EngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::~SingletonInnerActor() noexcept
 {
     try
     {
@@ -675,7 +675,7 @@ AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::~Singlet
     }
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::onEvent(
+void EngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::onEvent(
     const e2econnector::SingletonClientEngineEvent &event)
 {
     try
@@ -815,11 +815,11 @@ void AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::onE
     }
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::notifyAddEngineRoute(
-    engine_id_type engineId, const RouteInfoList &routeInfoList) noexcept
+//---- Notify Add Engine Route -------------------------------------------------
+
+void EngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::notifyAddEngineRoute(engine_id_type engineId, const RouteInfoList &routeInfoList) noexcept
 {
-    for (ProxyWeakReferenceList::iterator iproxy = proxyWeakReferenceList.begin();
-         iproxy != proxyWeakReferenceList.end();)
+    for (ProxyWeakReferenceList::iterator iproxy = proxyWeakReferenceList.begin(); iproxy != proxyWeakReferenceList.end();)
     {
         if (iproxy->proxy == 0)
         {
@@ -833,7 +833,7 @@ void AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::not
     }
 }
 
-void AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::notifyRemoveEngineRoute(
+void EngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::notifyRemoveEngineRoute(
     engine_id_type engineId, const RouteInfoList &routeInfoList) noexcept
 {
     for (ProxyWeakReferenceList::iterator iproxy = proxyWeakReferenceList.begin();
@@ -851,8 +851,8 @@ void AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::not
     }
 }
 
-AsyncEngineToEngineConnector::ServiceActor::Proxy::RouteInfoList::iterator
-AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRouteInfo(
+EngineToEngineConnector::ServiceActor::Proxy::RouteInfoList::iterator
+EngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRouteInfo(
     RouteInfoList &routeInfoList, const Actor::ActorId::RouteId &routeId) noexcept
 {
     RouteInfoList::iterator irouteInfo = routeInfoList.begin(), endirouteInfo = routeInfoList.end();
@@ -862,7 +862,7 @@ AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRout
     return irouteInfo;
 }
 
-e2econnector::RouteEntry *AsyncEngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRouteEntry(
+e2econnector::RouteEntry *EngineToEngineConnector::ServiceActor::Proxy::SingletonInnerActor::findRouteEntry(
     e2econnector::RouteEntry *firstRouteEntry, const Actor::ActorId::RouteId &routeId) noexcept
 {
     e2econnector::RouteEntry *routeEntry = firstRouteEntry;
@@ -872,8 +872,10 @@ e2econnector::RouteEntry *AsyncEngineToEngineConnector::ServiceActor::Proxy::Sin
     return routeEntry;
 }
 
-AsyncEngineToEngineSerialConnector::AsyncEngineToEngineSerialConnector(Actor &actor, size_t serialBufferSize)
-    : AsyncEngineToEngineConnector(actor), eventIdSerializeFnArray(0), eventIdDeserializeArray(0),
+//---- CTOR --------------------------------------------------------------------
+
+EngineToEngineSerialConnector::EngineToEngineSerialConnector(Actor &actor, size_t serialBufferSize)
+    : EngineToEngineConnector(actor), eventIdSerializeFnArray(0), eventIdDeserializeArray(0),
       readSerialBuffer(actor, serialBufferSize), writeSerialBuffer(actor, serialBufferSize), serialBufferCopy(0),
       distance(0)
 {
@@ -907,7 +909,7 @@ AsyncEngineToEngineSerialConnector::AsyncEngineToEngineSerialConnector(Actor &ac
     }
 }
 
-AsyncEngineToEngineSerialConnector::~AsyncEngineToEngineSerialConnector() noexcept
+EngineToEngineSerialConnector::~EngineToEngineSerialConnector() noexcept
 {
     Actor::Allocator<Actor::Event::EventE2ESerializeFunction>(getAllocator())
         .deallocate(eventIdSerializeFnArray, Actor::MAX_EVENT_ID_COUNT);
@@ -916,7 +918,7 @@ AsyncEngineToEngineSerialConnector::~AsyncEngineToEngineSerialConnector() noexce
     Actor::Allocator<char>(getAllocator()).deallocate(serialBufferCopy, serialBufferCopySize);
 }
 
-void AsyncEngineToEngineSerialConnector::writeSerialAbsoluteEventId(Actor::EventId eventId,
+void EngineToEngineSerialConnector::writeSerialAbsoluteEventId(Actor::EventId eventId,
                                                                     const char *absoluteEventId)
 {
     size_t absoluteEventIdSize = strlen(absoluteEventId);
@@ -950,7 +952,7 @@ void AsyncEngineToEngineSerialConnector::writeSerialAbsoluteEventId(Actor::Event
     }
 }
 
-bool AsyncEngineToEngineSerialConnector::readSerialRouteEvent()
+bool EngineToEngineSerialConnector::readSerialRouteEvent()
 {
     assert(readSerialBuffer.size() >= sizeof(uint8_t));
     assert(readSerialBuffer.getCurrentReadBufferSize() >= sizeof(uint8_t));
@@ -998,7 +1000,7 @@ bool AsyncEngineToEngineSerialConnector::readSerialRouteEvent()
     return true;
 }
 
-bool AsyncEngineToEngineSerialConnector::readSerialReturnEvent()
+bool EngineToEngineSerialConnector::readSerialReturnEvent()
 {
     assert(readSerialBuffer.size() >= sizeof(uint8_t));
     assert(readSerialBuffer.getCurrentReadBufferSize() >= sizeof(uint8_t));
@@ -1046,7 +1048,7 @@ bool AsyncEngineToEngineSerialConnector::readSerialReturnEvent()
     return true;
 }
 
-void AsyncEngineToEngineSerialConnector::readSerialUndeliveredEvent(const SerialReturnEventHeader &header,
+void EngineToEngineSerialConnector::readSerialUndeliveredEvent(const SerialReturnEventHeader &header,
                                                                     const void *eventSerialBuffer,
                                                                     size_t eventSerialBufferSize)
 {
@@ -1060,7 +1062,7 @@ void AsyncEngineToEngineSerialConnector::readSerialUndeliveredEvent(const Serial
     }
     assert(eventE2EDeserialize->deserializeFunction != 0);
     SerialEventHeader returnHeader = header.swapSourceDestination();
-    AsyncEngineToEngineConnectorEventFactory eventFactory(*this, returnHeader
+    EngineToEngineConnectorEventFactory eventFactory(*this, returnHeader
 #ifndef NDEBUG
                                                           ,
                                                           eventE2EDeserialize->localEventId
@@ -1071,7 +1073,7 @@ void AsyncEngineToEngineSerialConnector::readSerialUndeliveredEvent(const Serial
     eventFactory.toBeUndeliveredRoutedEvent();
 }
 
-void AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent(const SerialAbsoluteEventIdHeader &header,
+void EngineToEngineSerialConnector::readSerialAbsoluteIdEvent(const SerialAbsoluteEventIdHeader &header,
                                                                    const char *absoluteEventId)
 {
     Actor::EventId peerEventId = header.getEventId();
@@ -1091,7 +1093,7 @@ void AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent(const SerialA
     eventIdDeserializeArray[peerEventId].deserializeFunction = eventDeserializeFn;
 }
 
-bool AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent()
+bool EngineToEngineSerialConnector::readSerialAbsoluteIdEvent()
 {
     assert(readSerialBuffer.size() >= sizeof(uint8_t));
     assert(readSerialBuffer.getCurrentReadBufferSize() >= sizeof(uint8_t));
@@ -1109,7 +1111,7 @@ bool AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent()
     {
         return false;
     }
-    if ((int)serialAbsoluteEventIdSize + 1 > serialBufferCopySize)
+    if ((int)serialAbsoluteEventIdSize + 1 > serialBufferCopySize)                  // appends zero to serialized buff?
     { // +1 to include null char
         char *localSerialBufferCopy =
             Actor::Allocator<char>(getAllocator()).allocate(serialAbsoluteEventIdSize + 1);
@@ -1144,7 +1146,7 @@ bool AsyncEngineToEngineSerialConnector::readSerialAbsoluteIdEvent()
     return true;
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::registerConnection(const char *peerEngineName,
+void EngineToEngineSharedMemoryConnector::registerConnection(const char *peerEngineName,
                                                                   const char *peerEngineSuffix,
                                                                   const ServiceEntryVector &serviceEntryVector,
                                                                   SharedMemory &psharedMemory)
@@ -1154,22 +1156,22 @@ void AsyncEngineToEngineSharedMemoryConnector::registerConnection(const char *pe
     {
         throw NotConnectedSharedMemoryException();
     }
-    AsyncEngineToEngineConnector::registerConnection(peerEngineName, peerEngineSuffix, serviceEntryVector,
+    EngineToEngineConnector::registerConnection(peerEngineName, peerEngineSuffix, serviceEntryVector,
                                                      &onWriteSerialEvent, &onWriteSerialUndeliveredEvent, true, 0);
     assert(sharedMemory == 0);
     sharedMemory = &psharedMemory;
     actor.registerCallback(preBarrierCallback);
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::unregisterConnection() noexcept
+void EngineToEngineSharedMemoryConnector::unregisterConnection() noexcept
 {
-    AsyncEngineToEngineConnector::unregisterConnection();
+    EngineToEngineConnector::unregisterConnection();
     sharedMemory = 0;
     preBarrierCallback.unregister();
     postBarrierCallback.unregister();
 }
 
-AsyncEngineToEngineSharedMemoryConnector::SharedMemory::SharedMemory(const Actor &actor, void *ptr, size_t sz)
+EngineToEngineSharedMemoryConnector::SharedMemory::SharedMemory(const Actor &actor, void *ptr, size_t sz)
     : readControl(0), writeControl(0), eventPageSize(actor.asyncNode->getEventAllocatorPageSize()),
       lastConnectionStatus(ConnectionControl::UndefinedStatus)
 {
@@ -1187,7 +1189,7 @@ AsyncEngineToEngineSharedMemoryConnector::SharedMemory::SharedMemory(const Actor
     eventPagesMemorySize = sz - (cacheLigneAlignementOffset + sizeof(ConnectionControl) + 2 * sizeof(ReadWriteControl));
 }
 
-AsyncEngineToEngineSharedMemoryConnector::SharedMemory::~SharedMemory() noexcept
+EngineToEngineSharedMemoryConnector::SharedMemory::~SharedMemory() noexcept
 {
     if (writeControl != 0)
     {
@@ -1196,7 +1198,7 @@ AsyncEngineToEngineSharedMemoryConnector::SharedMemory::~SharedMemory() noexcept
     }
 }
 
-bool AsyncEngineToEngineSharedMemoryConnector::SharedMemory::tryConnect() noexcept
+bool EngineToEngineSharedMemoryConnector::SharedMemory::tryConnect() noexcept
 {
     if ((lastConnectionStatus == ConnectionControl::ConnectedStatus &&
          connectionControl->concurrent.connectionStatusEnum != ConnectionControl::ConnectedStatus) ||
@@ -1293,13 +1295,13 @@ bool AsyncEngineToEngineSharedMemoryConnector::SharedMemory::tryConnect() noexce
     return isConnected();
 }
 
-bool AsyncEngineToEngineSharedMemoryConnector::SharedMemory::isConnected() noexcept
+bool EngineToEngineSharedMemoryConnector::SharedMemory::isConnected() noexcept
 {
     return lastConnectionStatus == ConnectionControl::ConnectedStatus &&
            connectionControl->concurrent.connectionStatusEnum == ConnectionControl::ConnectedStatus;
 }
 
-bool AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ConnectionControl::retainControl(
+bool EngineToEngineSharedMemoryConnector::SharedMemory::ConnectionControl::retainControl(
     ReadWriteControl *&readControl, ReadWriteControl *&writeControl) noexcept
 {
     assert(readControl == 0);
@@ -1327,7 +1329,7 @@ bool AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ConnectionControl::
     return true;
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ConnectionControl::releaseControl(
+void EngineToEngineSharedMemoryConnector::SharedMemory::ConnectionControl::releaseControl(
     ReadWriteControl *writeControl, bool releaseConnectionFlag) noexcept
 {
     while (!atomicCompareAndSwap(&concurrent.connectionStatusEnum, (sig_atomic_t)DisconnectedStatus,
@@ -1358,8 +1360,8 @@ void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ConnectionControl::
     }
 }
 
-AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::offset_type
-AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::toOffset(ConnectionControl &connectionControl,
+EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::offset_type
+EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::toOffset(ConnectionControl &connectionControl,
                                                                                    void *pointer) noexcept
 {
     assert(sizeof(offset_type) >= sizeof(uintptr_t));
@@ -1367,14 +1369,14 @@ AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::toOffs
     return (offset_type)(((uintptr_t)pointer) - ((uintptr_t)&connectionControl));
 }
 
-void *AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::fromOffset(
+void *EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::fromOffset(
     ConnectionControl &connectionControl, offset_type offset) noexcept
 {
     assert(offset != 0);
     return reinterpret_cast<void *>(((uintptr_t)&connectionControl) + offset);
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::push_back(
+void EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::push_back(
     ConnectionControl &connectionControl, Entry &entry) noexcept
 {
     entry.next = 0;
@@ -1391,7 +1393,7 @@ void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::C
     }
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::push_front(
+void EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::push_front(
     ConnectionControl &connectionControl, Entry &entry) noexcept
 {
     entry.next = head;
@@ -1406,7 +1408,7 @@ void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::C
     }
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::push_front(
+void EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::push_front(
     ConnectionControl &connectionControl, Chain &chain) noexcept
 {
     if (head != 0 && chain.head != 0)
@@ -1430,8 +1432,8 @@ void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::C
     chain.head = chain.tail = 0;
 }
 
-AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::Entry &
-AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::pop_front(
+EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::Entry &
+EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::pop_front(
     ConnectionControl &connectionControl) noexcept
 {
     assert(head != 0);
@@ -1444,12 +1446,12 @@ AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain:
     return ret;
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::clear() noexcept
+void EngineToEngineSharedMemoryConnector::SharedMemory::ReadWriteControl::Chain::clear() noexcept
 {
     head = tail = 0;
 }
 
-Actor::Event::AllocatorBase AsyncEngineToEngineConnectorEventFactory::getAllocator() noexcept
+Actor::Event::AllocatorBase EngineToEngineConnectorEventFactory::getAllocator() noexcept
 {
     eventAllocatorFactory.context =
         &serialConnector.asyncNode
@@ -1464,14 +1466,14 @@ Actor::Event::AllocatorBase AsyncEngineToEngineConnectorEventFactory::getAllocat
 #endif
 }
 
-void *AsyncEngineToEngineConnectorEventFactory::allocate(size_t sz)
+void *EngineToEngineConnectorEventFactory::allocate(size_t sz)
 {
     return serialConnector.asyncNode
         .getReferenceToWriterShared(serialEventHeader.getDestinationInProcessActorId().getNodeId())
         .writeCache.allocateEvent(sz);
 }
 
-void *AsyncEngineToEngineConnectorEventFactory::allocateEvent(size_t sz,
+void *EngineToEngineConnectorEventFactory::allocateEvent(size_t sz,
                                                               Actor::Event::Chain *&destinationEventChain)
 {
     Actor::NodeId destinationNodeId = serialEventHeader.getDestinationInProcessActorId().getNodeId();
@@ -1484,7 +1486,7 @@ void *AsyncEngineToEngineConnectorEventFactory::allocateEvent(size_t sz,
     return ret + 1;
 }
 
-void AsyncEngineToEngineConnectorEventFactory::toBeUndeliveredRoutedEvent() noexcept
+void EngineToEngineConnectorEventFactory::toBeUndeliveredRoutedEvent() noexcept
 {
     assert(event != 0);
     assert(destinationEventChain ==
@@ -1501,24 +1503,24 @@ void AsyncEngineToEngineConnectorEventFactory::toBeUndeliveredRoutedEvent() noex
     std::swap(event->sourceActorId, event->destinationActorId);
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::onWriteSerialEvent(AsyncEngineToEngineConnector *,
+void EngineToEngineSharedMemoryConnector::onWriteSerialEvent(EngineToEngineConnector *,
                                                                   const Actor::Event &)
 {
     breakThrow(FeatureNotImplementedException());
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::onWriteSerialUndeliveredEvent(AsyncEngineToEngineConnector *,
+void EngineToEngineSharedMemoryConnector::onWriteSerialUndeliveredEvent(EngineToEngineConnector *,
                                                                              const Actor::Event &)
 {
     breakThrow(FeatureNotImplementedException());
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::PreBarrierCallback::onCallback() noexcept
+void EngineToEngineSharedMemoryConnector::PreBarrierCallback::onCallback() noexcept
 {
     breakThrow(FeatureNotImplementedException());
 }
 
-void AsyncEngineToEngineSharedMemoryConnector::PostBarrierCallback::onCallback() noexcept
+void EngineToEngineSharedMemoryConnector::PostBarrierCallback::onCallback() noexcept
 {
     breakThrow(FeatureNotImplementedException());
 }

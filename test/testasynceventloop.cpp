@@ -18,7 +18,7 @@ using namespace std;
 namespace
 {
 
-class TestEventLoop : public AsyncEngineEventLoop
+class TestEventLoop : public EngineEventLoop
 {
   public:
     class Shared
@@ -84,7 +84,7 @@ class TestEventLoop : public AsyncEngineEventLoop
 };
 
 template <class _EventLoop>
-class TestEventLoopFactory : public AsyncEngineCustomEventLoopFactory, public TestAsyncExceptionHandler
+class TestEventLoopFactory : public EngineCustomEventLoopFactory, public TestAsyncExceptionHandler
 {
   public:
     const size_t eventAllocatorPageSizeByte;
@@ -108,8 +108,8 @@ template <class _EventLoopFactory> class TestStartSequence : public Engine::Star
   public:
     inline TestStartSequence(_EventLoopFactory &testEventLoopFactory, size_t eventAllocatorPageSizeByte)
     {
-        setAsyncExceptionHandler(testEventLoopFactory);
-        setAsyncEngineCustomEventLoopFactory(testEventLoopFactory);
+        setExceptionHandler(testEventLoopFactory);
+        setEngineCustomEventLoopFactory(testEventLoopFactory);
         setEventAllocatorPageSizeByte(eventAllocatorPageSizeByte);
     }
 };
@@ -271,7 +271,7 @@ void TestLocalEventActor::eventLoopOnEvent(TestEvent &) noexcept
 
 TestLocalEventLoop &TestLocalEventActorBase::getEventLoop()
 {
-    AsyncEngineEventLoop &eventLoop = Actor::getEventLoop();
+    EngineEventLoop &eventLoop = Actor::getEventLoop();
     EXPECT_TRUE(dynamic_cast<TestLocalEventLoop *>(&eventLoop) != 0);
     return static_cast<TestLocalEventLoop &>(eventLoop);
 }
@@ -362,7 +362,7 @@ void testCoreToCoreEvent()
     }
 }
 
-class TestReturnToSenderEventLoop : public AsyncEngineEventLoop
+class TestReturnToSenderEventLoop : public EngineEventLoop
 {
   public:
     struct Counters
@@ -508,7 +508,7 @@ class TestReturnToSenderEventLoop : public AsyncEngineEventLoop
 Mutex TestReturnToSenderEventLoop::staticMutex;
 TestReturnToSenderEventLoop::CoreIdCoutersMap TestReturnToSenderEventLoop::staticCoreIdCoutersMap;
 
-struct TestReturnToSenderEventLoopFactory : AsyncEngineCustomEventLoopFactory, TestAsyncExceptionHandler
+struct TestReturnToSenderEventLoopFactory : EngineCustomEventLoopFactory, TestAsyncExceptionHandler
 {
     virtual EventLoopAutoPointer newEventLoop()
     {

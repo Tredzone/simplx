@@ -214,7 +214,7 @@ protected:
 
 struct TestEngine: TestAsyncExceptionHandler, Engine
 {
-	inline TestEngine(StartSequence& startSequence) : Engine((startSequence.setAsyncExceptionHandler(*this), startSequence))
+	inline TestEngine(StartSequence& startSequence) : Engine((startSequence.setExceptionHandler(*this), startSequence))
     {
 	}
 };

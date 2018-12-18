@@ -29,7 +29,7 @@ struct Test1InitData
 
 Mutex Test1InitData::mutex;
 
-// typedef AsyncInitializerStartSequence<Test1InitData> Test1StartSequence;
+// typedef InitializerStartSequence<Test1InitData> Test1StartSequence;
 
 struct TestCoreSet : tredzone::Engine::CoreSet
 {
@@ -42,12 +42,12 @@ struct TestCoreSet : tredzone::Engine::CoreSet
     }
 };
 
-struct Test1StartSequence : AsyncInitializerStartSequence<Test1InitData>
+struct Test1StartSequence : InitializerStartSequence<Test1InitData>
 {
     template <class _Init>
     Test1StartSequence(const _Init &initData, const Engine::CoreSet &coreSet = TestCoreSet(),
-                       AsyncInitializerExceptionHandler *exceptHandler = 0)
-        : AsyncInitializerStartSequence<Test1InitData>(initData, coreSet, exceptHandler)
+                       InitializerExceptionHandler *exceptHandler = 0)
+        : InitializerStartSequence<Test1InitData>(initData, coreSet, exceptHandler)
     {
     }
 };

@@ -12,5 +12,6 @@ In this directory you'll find the following tutorials, sorted by inceasing compl
 8. ping pong
 9. asynchronous exit
 10. timer
+11. asynchronous keyboard polling
 
 Each folder contains its own README file with further details.

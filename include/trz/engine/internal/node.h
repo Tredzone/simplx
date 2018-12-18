@@ -17,8 +17,7 @@
 #include "trz/engine/engine.h"
 #include "trz/engine/internal/intrinsics.h"
 #include "trz/engine/internal/parallel.h"
-
-#include "trz/engine/RefMapper.h"
+#include "trz/engine/internal/RefMapper.h"
 
 #define CRITICAL_ASSERT(x)                                                                                             \
     if (!(x))                                                                                                          \
@@ -68,14 +67,14 @@ struct Actor::EventTable
 
 struct Actor::NodeConnection : MultiDoubleChainLink<NodeConnection>
 {
-    typedef void (*OnOutboundEventFn)(AsyncEngineToEngineConnector *, const Actor::Event &);
+    typedef void (*OnOutboundEventFn)(EngineToEngineConnector *, const Actor::Event &);
     typedef OnOutboundEventFn OnInboundUndeliveredEventFn;
     ActorId::RouteId::NodeConnectionId nodeConnectionId;
     ActorId::RouteId::NodeConnectionId unreachableNodeConnectionId;
-    AsyncEngineToEngineConnector *connector;
+    EngineToEngineConnector *connector;
     OnOutboundEventFn onOutboundEventFn;
     OnInboundUndeliveredEventFn onInboundUndeliveredEventFn;
-    bool isAsyncEngineToEngineSharedMemoryConnectorFlag;
+    bool isEngineToEngineSharedMemoryConnectorFlag;
 };
 #pragma pack(pop)
 
@@ -314,6 +313,7 @@ class AsyncNodesHandle
             {
                 op(readerSharedHandles[i], (NodeId)i);
             }
+            // skip readerNodeId (uses 2 loops to avoid if statement)
             for (size_t i = readerNodeId + 1, sz = readerSharedHandles.size(); i < sz; ++i)
             {
                 op(readerSharedHandles[i], (NodeId)i);
@@ -568,6 +568,7 @@ class AsyncNodeAllocator
     BlockChain *blockChainArray;
 
 #ifndef NDEBUG
+    // debug mode
     friend class AsyncNode;
     friend class Engine;
 
@@ -609,7 +610,7 @@ class AsyncNodeManager : private std::unique_ptr<AsyncExceptionHandler>, public 
 
   private:
     friend class Engine;
-    friend class AsyncEngineEventLoop;
+    friend class EngineEventLoop;
     friend class AsyncNode;
     friend class AsyncNodesHandle;
     AsyncExceptionHandler &exceptionHandler;
@@ -702,7 +703,8 @@ struct AsyncNodeBase
         }
 
       protected:
-        virtual void onNodeActorCountChange(size_t oldCount, size_t newCount) noexcept = 0;
+      
+        virtual void onNodeActorCountDiff(const size_t oldCount, const size_t newCount) noexcept = 0;
 
       private:
         friend class AsyncNode;
@@ -734,24 +736,27 @@ struct AsyncNodeBase
         Chain *chain;
     };
 
-    static StaticShared staticShared;
-    AsyncNodeAllocator nodeAllocator;
-    std::vector<SingletonActorIndexEntry, Actor::Allocator<SingletonActorIndexEntry>> singletonActorIndex;
-    SingletonActorIndexEntry::Chain singletonActorIndexChain;
-    size_t actorCount;
-    AsyncActorChain asyncActorChain;
-    AsyncActorChain destroyedAsyncActorChain;
-    AsyncActorOnUnreachableChain asyncActorOnUnreachableChain;
-    Actor::EventTable *freeEventTable;
-    AsyncNodeManager &nodeManager;
-    AsyncActorCallbackChain asyncActorCallbackChain;
-    AsyncActorCallbackChain asyncActorPerformanceNeutralCallbackChain;
-    NodeConnectionChain freeNodeConnectionChain;
-    NodeConnectionChain inUseNodeConnectionChain;
-    Actor::ActorId::RouteId::NodeConnectionId lastNodeConnectionId;
-    NodeActorCountListener::Chain nodeActorCountListenerChain;
-    const size_t eventAllocatorPageSize;
-    uint8_t loopUsagePerformanceCounterIncrement;
+    static StaticShared                         s_StaticShared;
+    
+    AsyncNodeAllocator                                                                  nodeAllocator;
+    std::vector<SingletonActorIndexEntry, Actor::Allocator<SingletonActorIndexEntry>>   singletonActorIndex;
+    SingletonActorIndexEntry::Chain                                                     singletonActorIndexChain;
+    
+    size_t                                      m_ActorCount;
+    AsyncActorChain                             asyncActorChain;
+    AsyncActorChain                             destroyedActorChain;
+    
+    AsyncActorOnUnreachableChain                actorOnUnreachableChain;
+    Actor::EventTable                           *freeEventTable;
+    AsyncNodeManager                            &nodeManager;
+    AsyncActorCallbackChain                     asyncActorCallbackChain;
+    AsyncActorCallbackChain                     asyncActorPerformanceNeutralCallbackChain;
+    NodeConnectionChain                         freeNodeConnectionChain;
+    NodeConnectionChain                         inUseNodeConnectionChain;
+    Actor::ActorId::RouteId::NodeConnectionId   lastNodeConnectionId;
+    NodeActorCountListener::Chain               m_NodeActorCountListenerChain;
+    const size_t                                eventAllocatorPageSize;
+    uint8_t                                     loopUsagePerformanceCounterIncrement;
 
     AsyncNodeBase(AsyncNodeManager &asyncNodeManager); // throw (std::bad_alloc)
     ~AsyncNodeBase() noexcept;
@@ -764,7 +769,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
     typedef Engine::CoreSet CoreSet;
     typedef CoreSet::UndefinedCoreException UndefinedCoreException;
     typedef Engine::CoreInUseException CoreInUseException;
-    typedef AsyncEngineCustomEventLoopFactory EventLoopFactory;
+    typedef EngineCustomEventLoopFactory EventLoopFactory;
     class Thread
     {
       public:
@@ -793,7 +798,9 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
             return std::make_pair(startHook, startHookArg);
         }
         inline StopHook getStopHook() const noexcept { return stopHook; }
-
+        
+        inline CoreId   getCoreId(void) const noexcept { return coreId; }
+        
       private:
         const CoreId coreId;
         const bool redZoneFlag;
@@ -813,9 +820,9 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
     {
         AsyncNodeManager &nodeManager;
         CoreId coreId;
-        AsyncEngineCustomEventLoopFactory &customEventLoopFactory;
+        EngineCustomEventLoopFactory &customEventLoopFactory;
         inline Init(AsyncNodeManager &pnodeManager, CoreId pcoreId,
-                    AsyncEngineCustomEventLoopFactory &pcustomEventLoopFactory) noexcept
+                    EngineCustomEventLoopFactory &pcustomEventLoopFactory) noexcept
             : nodeManager(pnodeManager),
               coreId(pcoreId),
               customEventLoopFactory(pcustomEventLoopFactory)
@@ -823,40 +830,40 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
         }
     };
 
-    #ifdef DEBUG_REF
-        std::string dbgRefLogStr;
-	#endif
-    
+    std::string dbgRefLogStr;
+	
     AsyncNode(const Init &); // throw (std::bad_alloc, UndefinedCoreException, CoreInUseException)
     ~AsyncNode() noexcept;
     inline const CoreSet &getCoreSet() const noexcept { return nodeHandle.coreSet; }
     inline size_t getEventAllocatorPageSize() const noexcept { return eventAllocatorPageSize; }
-    inline size_t getActorCount() const noexcept { return actorCount; }
+    inline size_t getActorCount() const noexcept { return m_ActorCount; }
     inline void subscribeNodeActorCountListener(NodeActorCountListener &listener) noexcept
     {
         listener.unsubscribe();
-        (listener.chain = &nodeActorCountListenerChain)->push_back(&listener);
+        (listener.chain = &m_NodeActorCountListenerChain)->push_back(&listener);
     }
-    template<class _AsyncActor> inline _AsyncActor& newAsyncActor() { // throw (std::bad_alloc, Actor::ShutdownException, ...)
-		_AsyncActor& actor = Actor::newActor<_AsyncActor>(*this);
-#ifdef DEBUG_REF
-    std::ostringstream stm;
-    stm << "AsyncNode::newAsyncActor;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-	Actor::appendRefLog(this,stm.str());
-#endif
+    template<class _Actor>
+    inline _Actor& newActor()
+    {
+        // throw (std::bad_alloc, Actor::ShutdownException, ...)
+		_Actor& actor = Actor::newActor<_Actor>(*this);
+        
+        TraceREF(this, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
+        
 		return actor;
 	}
-    template<class _AsyncActor, class _AsyncActorInit> inline _AsyncActor& newAsyncActor(
-			const _AsyncActorInit& init) { // throw (std::bad_alloc, Actor::ShutdownException, ...)
-	_AsyncActor& actor = Actor::newActor<_AsyncActor, _AsyncActorInit>(*this,
-				init);
-#ifdef DEBUG_REF
-    std::ostringstream stm;
-    stm << "AsyncNode::newAsyncActor;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-	Actor::appendRefLog(this,stm.str());
-#endif
+    
+    template<class _Actor, class _ActorInit>
+    inline _Actor& newActor(const _ActorInit& init)
+    {
+        // throw (std::bad_alloc, Actor::ShutdownException, ...)
+        _Actor& actor = Actor::newActor<_Actor, _ActorInit>(*this, init);
+
+        TraceREF(this, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
+        
 		return actor;
 	}
+    
     Actor::EventTable &retainEventTable(Actor &); // throw (std::bad_alloc, Actor::ShutdownException)
     void releaseEventTable(Actor::EventTable &) noexcept;
     void destroyAsyncActors() noexcept;
@@ -893,11 +900,11 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
   private:
     friend class Engine;
     friend class Actor;
-    friend class AsyncEngineToEngineConnector;
+    friend class EngineToEngineConnector;
     friend class AsyncNodesHandle;
-    friend class AsyncEngineEventLoop;
+    friend class EngineEventLoop;
 
-    AsyncEngineCustomEventLoopFactory::EventLoopAutoPointer eventLoop;
+    EngineCustomEventLoopFactory::EventLoopAutoPointer eventLoop;
     AsyncNodesHandle::Shared::EventAllocatorPageChain usedlocalEventAllocatorPageChain;
     Actor::CorePerformanceCounters corePerformanceCounters;
 #ifndef NDEBUG
@@ -1006,13 +1013,13 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
             unreachableNodeConnectionChain.swap(
                 writerSharedHandle.cl2.shared.writeCache.unreachableNodeConnectionChain);
             AsyncNode *node;
-            Actor::OnUnreachableChain *asyncActorOnUnreachableChain;
+            Actor::OnUnreachableChain *actorOnUnreachableChain;
             if (!unreachableNodeConnectionChain.empty() &&
-                !(asyncActorOnUnreachableChain =
-                      &(node = writerSharedHandle.cl1.writerNodeHandle->node)->asyncActorOnUnreachableChain)
+                !(actorOnUnreachableChain =
+                      &(node = writerSharedHandle.cl1.writerNodeHandle->node)->actorOnUnreachableChain)
                      ->empty())
             {
-                AsyncNodesHandle::ReaderSharedHandle::dispatchUnreachableNodes(*asyncActorOnUnreachableChain,
+                AsyncNodesHandle::ReaderSharedHandle::dispatchUnreachableNodes(*actorOnUnreachableChain,
                                                                                unreachableNodeConnectionChain, node->id,
                                                                                node->nodeManager.exceptionHandler);
             }
@@ -1020,25 +1027,25 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
     }
     inline void synchronizeDestroyAsyncActors() noexcept
     {
-        if (!destroyedAsyncActorChain.empty())
+        if (!destroyedActorChain.empty())
         {
             AsyncActorChain tmp;
-            tmp.swap(destroyedAsyncActorChain);
+            tmp.swap(destroyedActorChain);
             while (!tmp.empty())
             {
                 loopUsagePerformanceCounterIncrement = 1;
                 Actor *asyncActor = tmp.front();
-                assert(asyncActor->chain == &destroyedAsyncActorChain);
+                assert(asyncActor->chain == &destroyedActorChain);
                 asyncActor->chain = &tmp;
-                if (asyncActor->referenceFromCount == 0 &&
+                if (asyncActor->m_ReferenceFromCount == 0 &&
                     (asyncActor->onUnreferencedDestroyFlag = false, asyncActor->m_DestroyRequestedFlag = false,
                      asyncActor->onDestroyRequest(), asyncActor->m_DestroyRequestedFlag) &&
-                    asyncActor->referenceFromCount == 0)
-                { // Second asyncActor->referenceFromCount == 0 occurs after asyncActor->onDestroyRequest(), in case actor is
+                    asyncActor->m_ReferenceFromCount == 0)
+                { // Second asyncActor->m_ReferenceFromCount == 0 occurs after asyncActor->onDestroyRequest(), in case actor is
                   // referenced back during onDestroyRequest()
                     asyncActor->chain->remove(asyncActor);
                     asyncActor->chain =
-                        &destroyedAsyncActorChain; // to avoid requestDestroy() effect if called during destructor
+                        &destroyedActorChain; // to avoid requestDestroy() effect if called during destructor
                     if (asyncActor->singletonActorIndex != StaticShared::SINGLETON_ACTOR_INDEX_SIZE)
                     {
                         assert(asyncActor->singletonActorIndex < StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
@@ -1051,45 +1058,38 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
                     }
                     delete asyncActor;
                 }
-                else if (asyncActor->chain == &tmp)
-                {
-                    assert(asyncActor == tmp.front());
-                    tmp.pop_front();
-                    (asyncActor->chain = &asyncActorChain)->push_back(asyncActor);
-                }
                 else
                 {
-                    assert(asyncActor->chain == &destroyedAsyncActorChain);
+                    TraceREF(this, "synchronizeDestroyAsyncActors::BLOCKED_ACTOR_DESTRUCTION", "-1.-1", cppDemangledTypeInfoName(typeid(*this)), asyncActor->getActorId(), cppDemangledTypeInfoName(typeid(*asyncActor)))
+                    
+                    if (asyncActor->chain == &tmp)
+                    {
+                        assert(asyncActor == tmp.front());
+                        tmp.pop_front();
+                        (asyncActor->chain = &asyncActorChain)->push_back(asyncActor);
+                    }
+                    else
+                    {
+                        assert(asyncActor->chain == &destroyedActorChain);
+                    }
                 }
             }
         }
     }
-    inline void onNodeActorCountChange(int delta) noexcept
+    
+    inline
+    IRefMapper& getRefMapper(void) const
     {
-        assert((int64_t)actorCount + delta >= 0);
-        size_t oldCount = actorCount;
-        size_t newCount = (actorCount = (size_t)((int64_t)actorCount + delta));
-        if (newCount == 0)
-        {
-            stop();
-        }
-        NodeActorCountListener::Chain tmp;
-        tmp.swap(nodeActorCountListenerChain);
-        for (NodeActorCountListener::Chain::iterator i = tmp.begin(), endi = tmp.end(); i != endi; ++i)
-        {
-            assert(i->chain == &nodeActorCountListenerChain);
-            i->chain = &tmp;
-        }
-        while (!tmp.empty())
-        {
-            NodeActorCountListener &listener = *tmp.pop_front();
-            (listener.chain = &nodeActorCountListenerChain)->push_back(&listener);
-            listener.onNodeActorCountChange(oldCount, newCount);
-        }
+        return m_RefMapper;
     }
+    
+    void    onActorAdded(Actor *actor);
+    void    onActorRemoved(Actor *actor);
     
 private:
 
+    void onNodeActorCountChange_LL(const int delta, const Actor *actor) noexcept;
+    
     std::unique_ptr<IRefMapper>     m_RefMapperPtr;
     IRefMapper                      &m_RefMapper;
         
@@ -1272,12 +1272,12 @@ void AsyncNodesHandle::ReaderSharedHandle::read() noexcept
             }
         }
     }
-    Actor::OnUnreachableChain *asyncActorOnUnreachableChain;
+    Actor::OnUnreachableChain *actorOnUnreachableChain;
     if (!sharedReadWriteLocked.unreachableNodeConnectionChain.empty() &&
-        !(asyncActorOnUnreachableChain = &node.asyncActorOnUnreachableChain)->empty())
+        !(actorOnUnreachableChain = &node.actorOnUnreachableChain)->empty())
     {
         node.loopUsagePerformanceCounterIncrement = 1;
-        dispatchUnreachableNodes(*asyncActorOnUnreachableChain, sharedReadWriteLocked.unreachableNodeConnectionChain,
+        dispatchUnreachableNodes(*actorOnUnreachableChain, sharedReadWriteLocked.unreachableNodeConnectionChain,
                                  sharedReadWriteLocked.writerNodeId, node.nodeManager.exceptionHandler);
     }
 }

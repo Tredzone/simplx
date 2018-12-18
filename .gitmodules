@@ -3,3 +3,6 @@
 	url = https://github.com/google/googletest.git
 	ignore = dirty
 	
+[submodule "enterprise"]
+	path = enterprise
+	url = ssh://git@github.com/tredzone/enterprise.git

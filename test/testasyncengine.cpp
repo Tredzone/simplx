@@ -32,14 +32,14 @@ class TestEngine
 {
   public:
     TestEngine(Engine::StartSequence &startSequence)
-        : asyncEngine((startSequence.setAsyncEngineCustomCoreActorFactory(testAsyncEngineCustomCoreActorFactory),
+        : asyncEngine((startSequence.setEngineCustomCoreActorFactory(testAsyncEngineCustomCoreActorFactory),
                        startSequence))
     {
         EXPECT_EQ((testAsyncEngineCustomCoreActorFactory.coreCount == 0), (startSequence.getCoreSet().size() == 0));
     }
 
   private:
-    struct TestAsyncEngineCustomCoreActorFactory : AsyncEngineCustomCoreActorFactory
+    struct TestAsyncEngineCustomCoreActorFactory : EngineCustomCoreActorFactory
     {
         volatile unsigned coreCount;
         TestAsyncEngineCustomCoreActorFactory() : coreCount(0) {}
@@ -163,7 +163,8 @@ void testAllocator()
 class TestBasicService : public Actor
 {
   public:
-    template <int> struct Service : AsyncService
+    template<int>
+    struct TestService : Service
     {
     };
 
@@ -295,13 +296,13 @@ void testBasicService()
 {
     TestBasicService::Shared shared;
     TestStartSequence startSequence;
-    startSequence.addServiceActor<TestBasicService::Service<1>, TestBasicService>(0, &shared);
-    startSequence.addServiceActor<TestBasicService::Service<2>, TestBasicService::Service2Actor>(0);
+    startSequence.addServiceActor<TestBasicService::TestService<1>, TestBasicService>(0, &shared);
+    startSequence.addServiceActor<TestBasicService::TestService<2>, TestBasicService::Service2Actor>(0);
 
-    ASSERT_THROW((startSequence.addServiceActor<TestBasicService::Service<2>, TestBasicService::Service3Actor>(0)),
+    ASSERT_THROW((startSequence.addServiceActor<TestBasicService::TestService<2>, TestBasicService::Service3Actor>(0)),
                  Engine::StartSequence::DuplicateServiceException);
 
-    startSequence.addServiceActor<TestBasicService::Service<3>, TestBasicService::Service3Actor>(0);
+    startSequence.addServiceActor<TestBasicService::TestService<3>, TestBasicService::Service3Actor>(0);
     startSequence.addServiceActor<Engine::StartSequence::AnonymousService, TestBasicService::Service4Actor>(0);
     startSequence.addServiceActor<Engine::StartSequence::AnonymousService, TestBasicService::Service5Actor>(0);
     startSequence.addActor<TestBasicService::NonServiceActor>(0, &shared);
@@ -322,7 +323,7 @@ void testBasicService()
 
 struct TestActor : public Actor
 {
-    struct Tag : AsyncService
+    struct Tag : Service
     {
     };
 

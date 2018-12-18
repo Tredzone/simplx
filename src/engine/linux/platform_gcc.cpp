@@ -8,19 +8,29 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
+
+/*
+
+for clang must:
+
+apt install libc++abi-dev
+
+*/
+
 #include <cxxabi.h>
 
 #include "trz/engine/internal/linux/platform_gcc.h"
 
 using namespace std;
 
-#ifndef NDEBUG
+#if (!defined(NDEBUG) && !defined(__clang__))
 /**
  * cf: http://linux.die.net/man/3/backtrace_symbols
  */
 vector<string> tredzone::debugBacktrace(const uint8_t stackTraceSize) noexcept
 {
-    // void *buffer[stackTraceSize];						// variable length array is VERBOTEN
+    // void *buffer[stackTraceSize];						// variable length array is VERBOTEN!
     vector<void *> buffer(stackTraceSize, nullptr);
     char **trace;
     vector<string> ret;
@@ -29,8 +39,7 @@ vector<string> tredzone::debugBacktrace(const uint8_t stackTraceSize) noexcept
     {
         int32_t returnedStackTraceSize = backtrace(&buffer[0], stackTraceSize);
         assert(returnedStackTraceSize != 0);
-        // cout << "> returnedStackTraceSize : " << returnedStackTraceSize << endl;
-
+        
         trace = backtrace_symbols(&buffer[0], returnedStackTraceSize);
         assert(trace != 0);
 
@@ -38,14 +47,14 @@ vector<string> tredzone::debugBacktrace(const uint8_t stackTraceSize) noexcept
         for (int32_t j = 0; j < returnedStackTraceSize; ++j)
         {
             ret.push_back(demangleFromSymbolName(trace[j]));
-            // cout << ret.at(j) << endl;
         }
+        
+        free(trace);
     }
     catch (...)
     {
     }
-
-    free(trace);
+    
     return ret;
 }
 
@@ -117,7 +126,17 @@ string tredzone::demangleFromSymbolName(char *symbolName) noexcept
     return ss.str();
 }
 
+#else
+
+// RELEASE BUILD and/or clang dummies
+
+vector<string> tredzone::debugBacktrace(const uint8_t) noexcept
+{
+    return {""};
+}
+
 #endif
+
 
 string tredzone::cppDemangledTypeInfoName(const type_info &typeInfo)
 {
@@ -150,9 +169,8 @@ string tredzone::cppDemangledTypeInfoName(const type_info &typeInfo)
     }
 }
 
-/**
- * cf: http://linux.die.net/man/3/strerror_r
- */
+// cf: http://linux.die.net/man/3/strerror_r
+
 string tredzone::systemErrorToString(int err)
 {
     assert(err != 0);

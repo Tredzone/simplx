@@ -474,24 +474,6 @@ namespace tredzone
  */
 
 /**
- * @fn std::vector<std::string> debugBacktrace(const uint8_t stackTraceSize = 32) noexcept
- * @brief Retrieve a debug backtrace
- * @param stackTraceSize by default is set to 32. This corresponds to the backtrace's maximum size.
- * @return string vector containing the backtrace.
- */
-/**
- * @fn std::string demangleFromSymbolName(char*) noexcept
- * @brief Demangle symbol from its mangled name.
- * @param Mangled symbol
- * @return Demangled symbol
- */
-/**
- * @fn std::string cppDemangledTypeInfoName(const std::type_info&)
- * @brief Demangle symbol from its type_info
- * @param type_info corresponding to symbol
- * @return Demangled symbol
- */
-/**
  * @fn pid_t getPID()
  * @brief Get the current process's process id (PID)
  * @return Process id

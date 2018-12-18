@@ -29,7 +29,7 @@ public:
 
 	/**
 	 * @brief Constructor
-	 * @param actor used to reference a TimerVlient core Singleton
+	 * @param actor used to reference a TimerClient core Singleton
 	 * @param serviceIndex the engine Services table
 	 * @return
 	 * throw (std::bad_alloc, Actor::ShutdownException, NoServiceException)
@@ -78,6 +78,13 @@ public:
 	inline void unset() noexcept {
 		singletonActorEventHandler->unset(*this);
 	}
+    
+    inline
+    void stop(void) noexcept
+    {
+        unset();
+    }
+    
 	/**
 	 *
 	 * @return true if a set() or setRepeat() is done, false otherwise
@@ -205,11 +212,11 @@ private:
 	bool                                                repeatFlag;
 	TimerProxy::Chain                                   *chain;
 
-	virtual void onTimeout(const DateTime&) noexcept = 0;
+	virtual void onTimeout(const DateTime&) noexcept {}
 	inline bool timedOut(const Time& t, Time& minRemainToTimeOut) noexcept;
 };
 
-} // namespace
+} // namespace timer
 
-} // namespace
+} // namespace tredzone
 

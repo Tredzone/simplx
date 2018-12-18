@@ -35,7 +35,7 @@ class PrinterActor : public Actor
 public:
 
 	// service tag (or key) used to uniquely identify service
-	struct Service : AsyncService {};
+	struct ServiceTag : Service {};
 
     // ctor
 	PrinterActor()
@@ -61,7 +61,7 @@ public:
 		cout << "WriterActor::CTOR()" << endl;
         
         // retrieve PrinterActor's id from the ServiceIndex
-		const ActorId&   printerActorId = getEngine().getServiceIndex().getServiceActorId<PrinterActor::Service>();
+		const ActorId&   printerActorId = getEngine().getServiceIndex().getServiceActorId<PrinterActor::ServiceTag>();
         
 		Event::Pipe pipe(*this, printerActorId);	// create uni-directional communication channel between WriterActor (this) and PrinterActor (printerActorId)
 		pipe.push<PrintEvent>("Hello, World!");		// send PrintEvent through pipe
@@ -76,7 +76,7 @@ int main()
     
     Engine::StartSequence   startSequence;	        // configure initial Actor system
     
-    startSequence.addServiceActor<PrinterActor::Service, PrinterActor>(0/*CPU core*/);
+    startSequence.addServiceActor<PrinterActor::ServiceTag, PrinterActor>(0/*CPU core*/);
     startSequence.addActor<WriterActor>(0/*CPU core*/);
     startSequence.addActor<WriterActor>(0/*CPU core*/);
 

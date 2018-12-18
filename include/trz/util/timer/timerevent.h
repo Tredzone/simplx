@@ -14,7 +14,7 @@
 namespace tredzone {
 namespace service {
 
-struct Timer : AsyncService {
+struct Timer : Service {
 };
 
 }

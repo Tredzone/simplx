@@ -1,6 +1,7 @@
 *~
 /build
 **/build/
+**/tbuild/
 /src/engine/build
 /tutorials/build
 /tutorials/build_*
@@ -12,6 +13,7 @@ doc/html/
 doc/latex/
 *.db
 *.o
+*.d
 *.bin
 *.o.d
 *.log
@@ -19,6 +21,12 @@ doc/latex/
 .clang/
 .codelite/
 **/CodeLite/Debug/*
-**/CodeLite/Makefile
-**/CodeLite/*.mk
-**/CodeLite/*.txt
+**/Makefile
+**/*.mk
+**/tutos.txt
+**/Tests.txt
+**/Debug/
+e2e_localhost.txt
+/.vscode
+.vscode/*
+

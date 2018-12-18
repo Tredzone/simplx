@@ -19,8 +19,7 @@
 #include "trz/engine/internal/serialbufferchain.h"
 #include "trz/engine/internal/stringstream.h"
 #include "trz/engine/internal/thread.h"
-
-#include "trz/engine/RefMapper.h"
+#include "trz/engine/internal/RefMapper.h"
 
 namespace tredzone
 {
@@ -30,18 +29,18 @@ struct AsyncNodeBase;
 class AsyncNodesHandle;
 class AsyncNodeAllocator;
 class Engine;
-class AsyncEngineEventLoop;
+class EngineEventLoop;
 class AsyncExceptionHandler;
 class Actor;
-class AsyncEngineToEngineConnector;
-class AsyncEngineToEngineSerialConnector;
-class AsyncEngineToEngineSharedMemoryConnector;
-class AsyncEngineToEngineConnectorEventFactory;
+class EngineToEngineConnector;
+class EngineToEngineSerialConnector;
+class EngineToEngineSharedMemoryConnector;
+class EngineToEngineConnectorEventFactory;
 
 struct FeatureNotImplementedException : std::exception
 {
     const char *what() const noexcept override
-    { // feature is not (yet) implemented!
+    {   // feature is not (yet) implemented!
         return "tredzone::FeaturedNotImplementedException";
     }
 };
@@ -68,8 +67,8 @@ struct ActorBase
 
   private:
     friend class Actor;
-    friend class AsyncEngineToEngineConnector;
-    friend class AsyncEngineToEngineSharedMemoryConnector;
+    friend class EngineToEngineConnector;
+    friend class EngineToEngineSharedMemoryConnector;
     friend class Engine;
 
     AsyncNode *asyncNode;
@@ -89,7 +88,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
     static const int MAX_NODE_COUNT     = 255; ///< Maximum number of parallel event-loops, with one event-loop per cpu-core.
     static const int MAX_EVENT_ID_COUNT = 4096; ///< Maximum number of classes derived from Actor::Event that can
                                                 ///actually be instantiated at run-time.
-
+    
+    size_t  CountReferencesTo(void) const;
+    size_t  CountRefDest(void) const;
+    
     /**
      * @brief This exception is thrown when actor A attempts to get a reference to actor B,
      * where B already has a direct or indirect reference to A.
@@ -104,13 +106,14 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         virtual const char *what() const noexcept { return "tredzone::Actor::CircularReferenceException"; }
     };
     
-    #ifdef DEBUG_REF
-        static void appendRefLog(AsyncNode* paN, std::string str);
-    #endif
+    static void appendRefLog(AsyncNode* paN, std::string str);
+    
+    void    onAdded(AsyncNode &nod);
+    void    onRemoved(AsyncNode &nod);
 
   private:
     struct EventBase;
-    friend class AsyncEngineToEngineConnectorEventFactory;
+    friend class EngineToEngineConnectorEventFactory;
 
 //---- ActorReferenceBase START ------------------------------------------------
 
@@ -122,6 +125,8 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
       
         // must be public!
         using Chain = ActorReferenceBase::DoubleChain<>;
+
+        size_t  CountRefDest(void) const;
 
         // vanilla ctor
         ActorReferenceBase(ActorReferenceBase::DoubleChain<> *ref_chain = nullptr, Actor *self = nullptr, const bool destroy_f = false) noexcept
@@ -143,8 +148,8 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             
             if (m_SelfActor)
             {
-                assert(m_SelfActor->referenceFromCount > 0);
-                ++(m_SelfActor->referenceFromCount);
+                assert(m_SelfActor->m_ReferenceFromCount > 0);
+                ++(m_SelfActor->m_ReferenceFromCount);
             }
         }
 
@@ -158,7 +163,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
                 throw CircularReferenceException();
             }
             m_RefDestChain->push_back(this);
-            ++(m_SelfActor->referenceFromCount);
+            ++(m_SelfActor->m_ReferenceFromCount);
         }
         
         // dtor
@@ -181,8 +186,8 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             
             if (m_SelfActor)
             {
-                assert(m_SelfActor->referenceFromCount > 0);
-                ++(m_SelfActor->referenceFromCount);
+                assert(m_SelfActor->m_ReferenceFromCount > 0);
+                ++(m_SelfActor->m_ReferenceFromCount);
             }
             return *this;
         }
@@ -192,14 +197,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         inline
         void unreference() noexcept
         {
-            // assert(m_RefDestChain);
-            // assert(m_SelfActor);
+            // would HANG destruction
+            // if (!m_RefDestChain || !m_SelfActor)    return;     // nothing to do
             
-            #ifdef DEBUG_REF
-                std::ostringstream stm;
-                stm << "ActorReferenceBase::unreference;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << m_SelfActor->getActorId() << ";" << cppDemangledTypeInfoName(typeid(*m_SelfActor)) << "\n";
-                Actor::appendRefLog(m_SelfActor->getAsyncNode(),stm.str());
-            #endif
+            TraceREF(m_SelfActor->getAsyncNode(), __func__, "-1,-1", cppDemangledTypeInfoName(typeid(*this)), m_SelfActor->getActorId(), cppDemangledTypeInfoName(typeid(*m_SelfActor)))
             
             if (m_RefDestChain)
             {   m_RefDestChain->remove(this);
@@ -207,8 +208,8 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             }
             
             if (m_SelfActor)
-            {   assert(m_SelfActor->referenceFromCount > 0);
-                if (--(m_SelfActor->referenceFromCount) == 0 &&
+            {   assert(m_SelfActor->m_ReferenceFromCount > 0);
+                if (--(m_SelfActor->m_ReferenceFromCount) == 0 &&
                     (m_ShouldDestroyFlag || m_SelfActor->onUnreferencedDestroyFlag))
                 {
                     m_SelfActor->requestDestroy();
@@ -430,7 +431,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
 
       private:
         friend class Actor;
-        friend class AsyncEngineToEngineConnectorEventFactory;
+        friend class EngineToEngineConnectorEventFactory;
         AsyncNodeAllocator *const asyncNodeAllocator;
     };
     /**
@@ -497,14 +498,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
 /**
  * @brief STL-compliant.
  */
-#ifdef TREDZONE_CPP11_SUPPORT
         template <class U, class... Args> void construct(U *p, Args &&... args)
         {
             ::new ((void *)p) U(std::forward<Args>(args)...);
         }
-#else
-        inline void construct(pointer p, const T &init) { new (p) T(init); }
-#endif
 
         /**
          * @brief STL-compliant.
@@ -533,7 +530,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
     
     //--------------------------------------------------------------------------
     // utility wrapper so can automatically do operations between different ActorReferences<XXX> with automatic typecast 
-    template <class _AsyncActor>
+    template <class _Actor>
     class ActorReference: private ActorReferenceBase
     {
         
@@ -549,15 +546,15 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         inline ActorReference(const ActorReference &other) noexcept : ActorReferenceBase(other) {}
         /**
          * @brief Copy constructor, which initializes the internal actor-reference from another ActorReference instance,
-         * and performs a dynamic_cast<_AsyncActor>.
+         * and performs a dynamic_cast<_Actor>.
          * @param other another instance to initialize the internal actor-reference from.
-         * @throw std::bad_cast if cast of actor-reference from _OtherAsyncActor to _AsyncActor fails.
+         * @throw std::bad_cast if cast of actor-reference from _OtherActor to _Actor fails.
          */
-        template <class _OtherAsyncActor>
-        inline ActorReference(const ActorReference<_OtherAsyncActor> &other) : ActorReferenceBase(other)
+        template <class _OtherActor>
+        inline ActorReference(const ActorReference<_OtherActor> &other) : ActorReferenceBase(other)
         {
             Actor *referencedActor = getReferencedActor();
-            if (referencedActor != 0 && dynamic_cast<_OtherAsyncActor *>(referencedActor) == 0)
+            if (referencedActor != 0 && dynamic_cast<_OtherActor *>(referencedActor) == 0)
             {
                 throw std::bad_cast();
             }
@@ -587,10 +584,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
          * can lead to unexpected behavior.
          * @return A reference to a non-NULL internal actor-reference.
          */
-        inline _AsyncActor &operator*() noexcept
+        inline _Actor &operator*() noexcept
         {
             assert(getReferencedActor() != 0);
-            return static_cast<_AsyncActor &>(*getReferencedActor());
+            return static_cast<_Actor &>(*getReferencedActor());
         }
         /**
          * @brief Dereferences the internal actor-reference.
@@ -601,10 +598,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
          * can lead to unexpected behavior.
          * @return A const reference to a non-NULL internal actor-reference.
          */
-        inline const _AsyncActor &operator*() const noexcept
+        inline const _Actor &operator*() const noexcept
         {
             assert(getReferencedActor() != 0);
-            return static_cast<const _AsyncActor &>(*getReferencedActor());
+            return static_cast<const _Actor &>(*getReferencedActor());
         }
         /**
          * @brief Dereferences the internal actor-reference.
@@ -615,10 +612,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
          * can lead to unexpected behavior.
          * @return A pointer to a non-NULL internal actor-reference.
          */
-        inline _AsyncActor *operator->() noexcept
+        inline _Actor *operator->() noexcept
         {
             assert(getReferencedActor() != 0);
-            return static_cast<_AsyncActor *>(getReferencedActor());
+            return static_cast<_Actor *>(getReferencedActor());
         }
         /**
          * @brief Dereferences the internal actor-reference.
@@ -629,23 +626,23 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
          * can lead to unexpected behavior.
          * @return A const pointer to a non-NULL internal actor-reference.
          */
-        inline const _AsyncActor *operator->() const noexcept
+        inline const _Actor *operator->() const noexcept
         {
             assert(getReferencedActor() != 0);
-            return static_cast<const _AsyncActor *>(getReferencedActor());
+            return static_cast<const _Actor *>(getReferencedActor());
         }
         /**
          * @brief Getter to the internal actor-reference.
          * @return A pointer to the internal actor-reference, which can be NULL.
          */
-        inline _AsyncActor *get() noexcept { return static_cast<_AsyncActor *>(getReferencedActor()); }
+        inline _Actor *get() noexcept { return static_cast<_Actor *>(getReferencedActor()); }
         /**
          * @brief Getter to the internal actor-reference.
          * @return A const pointer to the internal actor-reference, which can be NULL.
          */
-        inline const _AsyncActor *get() const noexcept
+        inline const _Actor *get() const noexcept
         {
-            return static_cast<const _AsyncActor *>(getReferencedActor());
+            return static_cast<const _Actor *>(getReferencedActor());
         }
         
         inline
@@ -661,7 +658,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         /**
          * throw (CircularReferenceException)
          */
-        inline ActorReference(Actor &referencingActor, _AsyncActor &referencedActor, bool destroyFlag = true)
+        inline ActorReference(Actor &referencingActor, _Actor &referencedActor, bool destroyFlag = true)
             : ActorReferenceBase(referencingActor, referencedActor, destroyFlag)
         {
         }
@@ -947,7 +944,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
       private:
         friend class Actor;
         friend class AsyncNodesHandle;
-        friend class AsyncEngineToEngineSerialConnector;
+        friend class EngineToEngineSerialConnector;
         friend std::ostream &operator<<(std::ostream &, const Actor::ActorId &);
         template <class> friend class Accessor;
 
@@ -1135,7 +1132,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
           private:
             friend class Actor;
             friend class AsyncNodesHandle;
-            friend class AsyncEngineToEngineConnector;
+            friend class EngineToEngineConnector;
             template <class> friend class Accessor;
 
             NodeConnection *nodeConnection;
@@ -1253,9 +1250,9 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         friend class Event;
         friend class AsyncNode;
         friend class Actor;
-        friend class AsyncEngineToEngineConnector;
-        friend class AsyncEngineToEngineSerialConnector;
-        friend class AsyncEngineToEngineConnectorEventFactory;
+        friend class EngineToEngineConnector;
+        friend class EngineToEngineSerialConnector;
+        friend class EngineToEngineConnectorEventFactory;
         template <class> friend class Accessor;
 
         RouteId routeId;
@@ -1303,7 +1300,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * For this operation to succeed the following conditions must be met:
      * - the referenced actor was not destroyed
      * - the referenced actor must be ran by the same event-loop (cpu-core) as this actor
-     * - the referenced actor must be of type _AsyncActor (the template generic type)
+     * - the referenced actor must be of type _Actor (the template generic type)
      *
      * @param actorId actor-id of an existing actor.
      * @return A new typed actor-reference smart-pointer to the actor represented by actorId.
@@ -1314,21 +1311,21 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * referenced.
      * @throw ReferenceLocalActorException the referenced actor either is not ran by
      * the same event-loop (cpu-core) as this actor, or was destroyed, and does not exist anymore.
-     * @throw std::bad_cast the referenced actor is not of type _AsyncActor (the template generic type).
+     * @throw std::bad_cast the referenced actor is not of type _Actor (the template generic type).
      */
-    template <class _AsyncActor> inline ActorReference<_AsyncActor> referenceLocalActor(const ActorId &actorId);
+    template <class _Actor> inline ActorReference<_Actor> referenceLocalActor(const ActorId &actorId);
     /**
      * @brief Creates a new actor which will be ran by the same event-loop (cpu-core) as this actor.
-     * The created actor will be of type _AsyncActor (the template generic type),
+     * The created actor will be of type _Actor (the template generic type),
      * and will be constructed using its default constructor (constructor with no arguments).
-     * _AsyncActor must have Actor as a public super-class.
+     * _Actor must have Actor as a public super-class.
      * The usual way to use this method is for an actor instance to embed another actor instance.
      * Therefore, when the embedding actor is destroyed, the embedded actor should seamlessly be destroyed.
      * To reflect this general case behavior, the actor created with this method is marked for destruction.
      * When all actor-references to the new actor are destroyed, the new actor is automatically destroyed.
      * @note To prevent automatic actor destruction, the following code should be used instead:
      * \code
-     * referenceLocalActor<_AsyncActor>(newUnreferencedActor<_AsyncActor>());
+     * referenceLocalActor<_Actor>(newUnreferencedActor<_Actor>());
      * \endcode
      * @attention During engine shutdown (destructor of Engine being called),
      * to avoid live-lock situations, no new actor can be created.
@@ -1342,23 +1339,23 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @throw ShutdownException The engine is shutting down (destructor of Engine being called),
      * no actor can be created anymore.
      * @throw std::bad_alloc
-     * @throw ? Any other exception possibly thrown depending on _AsyncActor (the template generic type)
+     * @throw ? Any other exception possibly thrown depending on _Actor (the template generic type)
      * constructor call.
      */
-    template <class _AsyncActor> inline ActorReference<_AsyncActor> newReferencedActor();
+    template <class _Actor> inline ActorReference<_Actor> newReferencedActor();
     /**
      * @brief Creates a new actor which will be ran by the same event-loop (cpu-core) as this actor.
-     * The created actor will be of type _AsyncActor (the template first generic type),
+     * The created actor will be of type _Actor (the template first generic type),
      * and will be constructed using its one-parameter constructor
-     * assignable from _AsyncActorInit type (the template second generic type).
-     * _AsyncActor must have Actor as a public super-class.
+     * assignable from _ActorInit type (the template second generic type).
+     * _Actor must have Actor as a public super-class.
      * The usual way to use this method is for an actor instance to embed another actor instance.
      * Therefore, when the embedding actor is destroyed, the embedded actor should seamlessly be destroyed.
      * To reflect this general case behavior, the actor created with this method is marked for destruction.
      * When all actor-references to the new actor are destroyed, the new actor is automatically destroyed.
      * @note To prevent automatic actor destruction, the following code should be used instead:
      * \code
-     * referenceLocalActor<_AsyncActor>(newUnreferencedActor<_AsyncActor>(actorInit));
+     * referenceLocalActor<_Actor>(newUnreferencedActor<_Actor>(actorInit));
      * \endcode
      * @attention During engine shutdown (destructor of Engine being called),
      * to avoid live-lock situations, no new actor can be created.
@@ -1373,16 +1370,16 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @throw ShutdownException The engine is shutting down (destructor of Engine being called),
      * no actor can be created anymore.
      * @throw std::bad_alloc
-     * @throw ? Any other exception possibly thrown depending on _AsyncActor (the template generic type)
+     * @throw ? Any other exception possibly thrown depending on _Actor (the template generic type)
      * constructor call.
      */
-    template <class _AsyncActor, class _AsyncActorInit>
-    inline ActorReference<_AsyncActor> newReferencedActor(const _AsyncActorInit &actorInit);
+    template <class _Actor, class _ActorInit>
+    inline ActorReference<_Actor> newReferencedActor(const _ActorInit &actorInit);
     /**
-     * @brief Creates a single actor instance per _AsyncActor (the template generic type) class,
+     * @brief Creates a single actor instance per _Actor (the template generic type) class,
      * and per event-loop (cpu-core).
-     * When this method is called for the first time using _AsyncActor as template generic type,
-     * it exactly behaves as newReferencedActor<_AsyncActor>().
+     * When this method is called for the first time using _Actor as template generic type,
+     * it exactly behaves as newReferencedActor<_Actor>().
      * Subsequent calls to this method with the same template generic type will return
      * an actor-reference to the already existing actor in this event-loop (cpu-core).
      * @note The singleton-actor is automatically destroyed when all actor-references to it are
@@ -1400,15 +1397,15 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @throw ShutdownException The engine is shutting down (destructor of Engine being called),
      * no actor can be created anymore.
      * @throw std::bad_alloc
-     * @throw ? Any other exception possibly thrown depending on _AsyncActor (the template generic type)
+     * @throw ? Any other exception possibly thrown depending on _Actor (the template generic type)
      * constructor call.
      */
-    template <class _AsyncActor> inline ActorReference<_AsyncActor> newReferencedSingletonActor();
+    template <class _Actor> inline ActorReference<_Actor> newReferencedSingletonActor();
     /**
-     * @brief Creates a single actor instance per _AsyncActor (the template first generic type) class,
+     * @brief Creates a single actor instance per _Actor (the template first generic type) class,
      * and per event-loop (cpu-core).
-     * When this method is called for the first time using _AsyncActor as template first generic type,
-     * it exactly behaves as newReferencedActor<_AsyncActor>(const _AsyncActorInit&).
+     * When this method is called for the first time using _Actor as template first generic type,
+     * it exactly behaves as newReferencedActor<_Actor>(const _ActorInit&).
      * Subsequent calls to this method with the same template first generic type, regardless of
      * the actorInit parameter will return an actor-reference to the already
      * existing actor in this event-loop (cpu-core).
@@ -1430,16 +1427,16 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @throw UndersizedException The number of different classes used to create singleton-actors
      * exceeds the limit (4096).
      * @throw std::bad_alloc
-     * @throw ? Any other exception possibly thrown depending on _AsyncActor (the template first generic type)
+     * @throw ? Any other exception possibly thrown depending on _Actor (the template first generic type)
      * constructor call.
      */
-    template <class _AsyncActor, class _AsyncActorInit>
-    inline ActorReference<_AsyncActor> newReferencedSingletonActor(const _AsyncActorInit &actorInit);
+    template <class _Actor, class _ActorInit>
+    inline ActorReference<_Actor> newReferencedSingletonActor(const _ActorInit &actorInit);
     /**
      * @brief Creates a new actor which will be ran by the same event-loop (cpu-core) as this actor.
-     * The created actor will be of type _AsyncActor (the template generic type),
+     * The created actor will be of type _Actor (the template generic type),
      * and will be constructed using its default constructor (constructor with no arguments).
-     * _AsyncActor must have Actor as a public super-class.
+     * _Actor must have Actor as a public super-class.
      * @attention During engine shutdown (destructor of Engine being called),
      * to avoid live-lock situations, no new actor can be created.
      * Attempting to do so will result in a ShutdownException exception.
@@ -1447,16 +1444,16 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @throw ShutdownException The engine is shutting down (destructor of Engine being called),
      * no actor can be created anymore.
      * @throw std::bad_alloc
-     * @throw ? Any other exception possibly thrown depending on _AsyncActor (the template generic type)
+     * @throw ? Any other exception possibly thrown depending on _Actor (the template generic type)
      * constructor call.
      */
-    template <class _AsyncActor> inline const ActorId &newUnreferencedActor();
+    template <class _Actor> inline const ActorId &newUnreferencedActor();
     /**
      * @brief Creates a new actor which will be ran by the same event-loop (cpu-core) as this actor.
-     * The created actor will be of type _AsyncActor (the template first generic type),
+     * The created actor will be of type _Actor (the template first generic type),
      * and will be constructed using its one-parameter constructor
-     * assignable from _AsyncActorInit type (the template second generic type).
-     * _AsyncActor must have Actor as a public super-class.
+     * assignable from _ActorInit type (the template second generic type).
+     * _Actor must have Actor as a public super-class.
      * @attention During engine shutdown (destructor of Engine being called),
      * to avoid live-lock situations, no new actor can be created.
      * Attempting to do so will result in a ShutdownException exception.
@@ -1465,11 +1462,11 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @throw ShutdownException The engine is shutting down (destructor of Engine being called),
      * no actor can be created anymore.
      * @throw std::bad_alloc
-     * @throw ? Any other exception possibly thrown depending on _AsyncActor (the template first generic type)
+     * @throw ? Any other exception possibly thrown depending on _Actor (the template first generic type)
      * constructor call.
      */
-    template <class _AsyncActor, class _AsyncActorInit>
-    inline const ActorId &newUnreferencedActor(const _AsyncActorInit &actorInit);
+    template <class _Actor, class _ActorInit>
+    inline const ActorId &newUnreferencedActor(const _ActorInit &actorInit);
     /**
      * @brief Registers the callback-handler passed as a parameter.
      * The callback-handler is of template generic type _Callback
@@ -1480,7 +1477,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * This method causes the event-loop (cpu-core) running this actor
      * to call onCallback() <b>once</b> on the next loop iteration.
      * Calling this method multiple times will always produce the same
-     * effect as calling it a single time.
+     * effect as calling it a single time.
      * @note _Callback does not need to be of polymorphic (virtual) type.
      * @param callbackHandler instance of _Callback implementing the onCallback() method.
      */
@@ -1690,15 +1687,15 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @brief Getter.
      * @return The event-loop instance running this actor.
      */
-    AsyncEngineEventLoop &getEventLoop() const noexcept;
+    EngineEventLoop &getEventLoop() const noexcept;
 
   private:
     friend class AsyncNode;
     friend struct AsyncNodeBase;
     friend class AsyncNodesHandle;
     friend class Engine;
-    friend class AsyncEngineToEngineConnector;
-    friend class AsyncEngineToEngineSharedMemoryConnector;
+    friend class EngineToEngineConnector;
+    friend class EngineToEngineSharedMemoryConnector;
     friend class RefMapper;
     
     typedef MultiDoubleChainLink<Actor, 2u> super;
@@ -1728,18 +1725,26 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         inline static super *getLink(Actor *item) noexcept { return static_cast<super *>(item); }
         inline static const super *getLink(const Actor *item) noexcept { return static_cast<const super *>(item); }
     };
-    template <class _Actor> struct ActorWrapper : virtual ActorBase, _Actor
+    template <class _Actor>
+    struct ActorWrapper : public virtual ActorBase, public _Actor
     {
-        inline ActorWrapper(AsyncNode &asyncNode) : ActorBase(&asyncNode) {}
+    public:
+    
+        // ctor
+        inline
+        ActorWrapper(AsyncNode &asyncNode)
+            : ActorBase(&asyncNode)
+        {
+            // Actor::onAdded(asyncNode);
+        }
         
+        // dtor
         virtual ~ActorWrapper()
         {
-            #ifdef DEBUG_REF
-                std::ostringstream stm;
-                _Actor &actor = static_cast<_Actor&>(*this);
-                stm << "ActorWrapper::DTOR;-1.-1;" << cppDemangledTypeInfoName(typeid(actor)) << ";" << actor.getActorId() << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-                Actor::appendRefLog(actor.getAsyncNode(),stm.str());
-            #endif
+            _Actor &actor = static_cast<_Actor&>(*this);
+            (void)actor;
+                
+            TraceREF(actor.getAsyncNode(), __func__, actor.actorId, cppDemangledTypeInfoName(typeid(actor)), "-1.-1", "null")
         }
         
         template <class _ActorInit>
@@ -1747,12 +1752,22 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             : ActorBase(&asyncNode), _Actor(actorInit)
         {
         }
-        inline void operator delete(void *p) noexcept
+        
+        inline
+        void operator delete(void *p) noexcept
         {
+            // alex shrubb says crashes on gcc7, recommends
+            // AllocatorBase(*static_cast<ActorWrapper*>(static_cast<_Actor*>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);  
+
             AllocatorBase(*static_cast<ActorWrapper *>(p)->Actor::asyncNode).deallocate(sizeof(ActorWrapper), p);
         }
-        inline void operator delete(void *, void *p) noexcept
+        
+        inline
+        void operator delete(void *, void *p) noexcept
         {
+            // alex shrubb says crashes on gcc7, recommends
+            // AllocatorBase(*static_cast<ActorWrapper*>(static_cast<_Actor*>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);  
+
             AllocatorBase(*static_cast<ActorWrapper *>(p)->Actor::asyncNode).deallocate(sizeof(ActorWrapper), p);
         }
     };
@@ -1771,7 +1786,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
     ActorId actorId;
     Chain *chain;
     OnUnreachableChain *onUnreachableChain;
-    size_t referenceFromCount;
+    size_t m_ReferenceFromCount;
     ReferenceToChain m_ReferenceToChain;
     bool m_DestroyRequestedFlag;
     bool onUnreferencedDestroyFlag;
@@ -1800,12 +1815,12 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
     void reserveSingletonActor(SingletonActorIndex); // throw (CircularReferenceException)
     void setSingletonActor(SingletonActorIndex, Actor &) noexcept;
     void unsetSingletonActor(SingletonActorIndex) noexcept;
-    template <class _AsyncActor>
-    inline static _AsyncActor &newActor(AsyncNode &); // throw (std::bad_alloc, ShutdownException, ...)
-    template <class _AsyncActor, class _AsyncActorInit>
-    inline static _AsyncActor &newActor(AsyncNode &,
-                                        const _AsyncActorInit &); // throw (std::bad_alloc, ShutdownException, ...)
-    template <class _AsyncActor> inline static SingletonActorIndex getSingletonActorIndex()
+    template <class _Actor>
+    inline static _Actor &newActor(AsyncNode &); // throw (std::bad_alloc, ShutdownException, ...)
+    template <class _Actor, class _ActorInit>
+    inline static _Actor &newActor(AsyncNode &,
+                                        const _ActorInit &); // throw (std::bad_alloc, ShutdownException, ...)
+    template <class _Actor> inline static SingletonActorIndex getSingletonActorIndex()
     { // throw (std::bad_alloc)
         static RetainedSingletonActorIndex retainedSingletonActorIndex;
         return retainedSingletonActorIndex.singletonActorIndex;
@@ -1893,13 +1908,15 @@ struct Actor::EventBase
   public:
     EventBase() : classId(0), sourceActorId(0), destinationActorId(0), routeOffset(0)
     {
+        // should never instantiate EventBase or a derivative manually
+        // Events are instatiated "in-place" by the engine inside pipe::push<>()
         breakThrow(std::runtime_error("illegal direct base instantiation"));
     }
 
   private:
     friend class Actor::Event;
     friend class AsyncExceptionHandler;
-    friend class AsyncEngineToEngineConnectorEventFactory;
+    friend class EngineToEngineConnectorEventFactory;
     typedef uint16_t route_offset_type;
 
     Actor::EventId classId;
@@ -1921,12 +1938,12 @@ struct Actor::EventBase
  * - registerUndeliveredEventHandler()
  * - Event::Pipe::push()
  * - Event::BufferedPipe::push()
- * - tredzone::AsyncEngineToEngineConnectorEventFactory::newEvent()
+ * - tredzone::EngineToEngineConnectorEventFactory::newEvent()
  *
  * Event and Event sub-classes cannot only be instantiated using the following factory methods:
  * - Event::Pipe::push()
  * - Event::BufferedPipe::push()
- * - tredzone::AsyncEngineToEngineConnectorEventFactory::newEvent()
+ * - tredzone::EngineToEngineConnectorEventFactory::newEvent()
  */
 #pragma pack(push)
 #pragma pack(1)
@@ -2071,12 +2088,12 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
         }
 
       private:
-        friend class AsyncEngineToEngineSerialConnector;
+        friend class EngineToEngineSerialConnector;
 
         SerialBuffer(Actor &routeActor, size_t bufferSize) : Base(routeActor.getAllocator(), bufferSize) {}
     };
     typedef void (*EventE2EDeserializeFunction)(
-        AsyncEngineToEngineConnectorEventFactory &, const void *,
+        EngineToEngineConnectorEventFactory &, const void *,
         size_t); ///< Function type for cluster-event deserialization (see isE2ECapable())
     typedef void (*EventE2ESerializeFunction)(
         SerialBuffer &, const Event &); ///< Function type for cluster-event serialization (see isE2ECapable())
@@ -2293,8 +2310,8 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
   private:
     friend class AsyncNodesHandle;
     friend class AsyncExceptionHandler;
-    friend class AsyncEngineToEngineConnector;
-    friend class AsyncEngineToEngineConnectorEventFactory;
+    friend class EngineToEngineConnector;
+    friend class EngineToEngineConnectorEventFactory;
     friend std::ostream &operator<<(std::ostream &, const Actor::Event::OStreamName &);
     friend std::ostream &operator<<(std::ostream &, const Actor::Event::OStreamContent &);
 
@@ -2539,7 +2556,7 @@ class Actor::Event::AllocatorBase
 
   private:
     friend class Pipe;
-    friend class AsyncEngineToEngineConnectorEventFactory;
+    friend class EngineToEngineConnectorEventFactory;
     struct Factory
     {
         typedef void *(*AllocateFn)(size_t, void *);
@@ -2635,14 +2652,10 @@ template <class T> class Actor::Event::Allocator : public Actor::Event::Allocato
 /**
  * @brief STL-compliant.
  */
-#ifdef TREDZONE_CPP11_SUPPORT
     template <class U, class... Args> void construct(U *p, Args &&... args)
     {
         new ((void *)p) U(std::forward<Args>(args)...);
     }
-#else
-    inline void construct(pointer p, const T &init) { new (p) T(init); }
-#endif
 
     /**
      * @brief STL-compliant.
@@ -2756,27 +2769,34 @@ class Actor::Event::Pipe
     /**
      * @brief Creates a new instance of the template generic type _Event
      * using its one-argument constructor.
-     * _Event must publicly inherit from Event and have a public one-argument constructor.
+     * _Event must publicly inherit from Event and have a public constructor, possibly variadic.
      * The created event is transmitted to pipe's destination actor (see Actor::registerEventHandler()).
      * If the transmission was unsuccessful (e.g. invalid destination actor), the event will
      * be returned to pipe's source actor (see Actor::registerUndeliveredEventHandler()).
      * @attention The newly created event's reference remains valid until the current event-batch
      * is committed (see Batch). Under batch-control, future access to that reference
      * is safe.
-     * @param eventInit parameter to be passed as argument to the constructor of the new event.
+     * @param args parameter(s) to be passed as argument to the constructor of the new event.
      * @return A reference to the newly created event.
      * @throw std::bad_alloc
      * @throw ? Any other exception possibly thrown depending on _Event (the template generic type)
      * constructor call.
      */
 
-    template <class _Event, class _EventInit> inline _Event &push(const _EventInit &eventInit)
-    { // throw (std::bad_alloc, ...)
-        EventChain *destinationEventChain;
-        _Event *ret = newEvent<_Event>(destinationEventChain, eventInit);
-        destinationEventChain->push_back(ret);
-        return *ret;
-    }
+	template<class _Event, class... _Args> inline _Event& push(_Args&&...args) {
+		EventChain* destinationEventChain;
+		_Event* ret = newEvent<_Event>(destinationEventChain, args...);
+		destinationEventChain->push_back(ret);
+		return *ret;
+	}
+
+    template<class _Event, class _EventInit> inline _Event& push(
+			const _EventInit& eventInit) { // throw (std::bad_alloc, ...)
+		EventChain* destinationEventChain;
+		_Event* ret = newEvent<_Event>(destinationEventChain, eventInit);
+		destinationEventChain->push_back(ret);
+		return *ret;
+	}
     /**
      * @brief Allocates an array of T entry-type in the current event-batch dedicated memory.
      * @note equivalent to (with less overhead):
@@ -2810,20 +2830,17 @@ class Actor::Event::Pipe
     friend class AllocatorBase;
     friend class Batch;
     friend class BufferedPipe;
-    friend class AsyncEngineToEngineConnectorEventFactory;
+    friend class EngineToEngineConnectorEventFactory;
     typedef Event::Chain EventChain;
 
-    template <class _Event> struct EventWrapper : virtual private EventBase, _Event
-    {
-        inline EventWrapper(const Pipe &eventPipe, route_offset_type routeOffset)
-            : EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId,
-                        routeOffset)
-        {
-        }
-        template<class _EventInit> inline EventWrapper(const Pipe& eventPipe,
-				const _EventInit& eventInit, route_offset_type routeOffset) :
-				EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId, routeOffset), _Event(eventInit) {}
-    };
+	template<class _Event> struct EventWrapper: virtual private EventBase, _Event {
+		inline EventWrapper(const Pipe& eventPipe, route_offset_type routeOffset) :
+		EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId, routeOffset) {
+		}
+		template<class... Args> inline EventWrapper(const Pipe& eventPipe, route_offset_type routeOffset, Args&&... args) :
+				EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId, routeOffset), _Event(args...) {
+		}
+	};
     struct EventFactory : AllocatorBase::Factory
     {
         typedef void *(Pipe::*NewFn)(size_t, EventChain *&, uintptr_t, Event::route_offset_type &);
@@ -2885,16 +2902,14 @@ class Actor::Event::Pipe
                 EventWrapper<_Event>(*this, routeOffset);
         return ret;
     }
-    template<class _Event, class _EventInit> inline _Event* newEvent(EventChain*& destinationEventChain,
-				const _EventInit& eventInit) // throw (std::bad_alloc, ...)
-    { // throw (std::bad_alloc, ...)
-        Event::route_offset_type routeOffset = 0;
-        _Event *ret =
-            new ((this->*eventFactory.newFn)(sizeof(EventWrapper<_Event>), destinationEventChain,
-                                             (uintptr_t) static_cast<Event *>((EventWrapper<_Event> *)0), routeOffset))
-                EventWrapper<_Event>(*this, eventInit,routeOffset);
-        return ret;
-    }
+	template<class _Event, class... Args> inline _Event* newEvent(EventChain*& destinationEventChain, Args&&...args) { // throw (std::bad_alloc, ...)
+		Event::route_offset_type routeOffset = 0;
+		_Event* ret = new (
+				(this->*eventFactory.newFn)(sizeof(EventWrapper<_Event> ),
+						destinationEventChain, (uintptr_t)static_cast<Event*>((EventWrapper<_Event>*)0), routeOffset)) EventWrapper<_Event>(*this,
+				routeOffset, args...);
+		return ret;
+	}
 };
 
 /**
@@ -2926,9 +2941,9 @@ class Actor::Event::Pipe
  *
  * void atomicPush(tredzone::Actor& source, const tredzone::Actor::ActorId& firstDestination, const tredzone::Actor::ActorId&
  * secondDestination) {
- *     tredzone::Actor::Event::BufferedPipe bufferedPipe(source, firstDestination);
+ *     Actor::Event::BufferedPipe bufferedPipe(source, firstDestination);
  *     bufferedPipe.push<MyEvent>(); // creates and stores the event, without actually pushing it
- *     tredzone::Actor::Event::Pipe(source, secondDestination).push<MyEvent>(); // if this push throws an exception, the
+ *     Actor::Event::Pipe(source, secondDestination).push<MyEvent>(); // if this push throws an exception, the
  * buffered-pipe stored event will not be released, hense not actually pushed
  *     // both pushes went through, we can flush bufferedPipe
  *     bufferedPipe.flush(); // actually pushes the stored event
@@ -3002,8 +3017,7 @@ class Actor::Event::BufferedPipe : public Actor::Event::Pipe
         return *ret;
     }
     /**
-     * @brief Creates a new instance of the template generic type _Event
-     * using its one-argument constructor.
+     * @brief Creates a new instance of the template generic type _Event.
      * _Event must publicly inherit from Event and have a public one-argument constructor.
      * The created event is stored for later transfer (see flush()) to pipe's destination actor
      * (see Actor::registerEventHandler()).
@@ -3163,31 +3177,23 @@ template <class _Event> bool Actor::isRegisteredUndeliveredEventHandler() const 
     return isRegisteredUndeliveredEventHandler(Event::getClassId<_Event>());
 }
 
-template <class _AsyncActor>
-Actor::ActorReference<_AsyncActor> Actor::referenceLocalActor(const ActorId &pactorId)
+template <class _Actor>
+Actor::ActorReference<_Actor> Actor::referenceLocalActor(const ActorId &pactorId)
 {
-    #ifdef DEBUG_REF
-        std::ostringstream stm;
-        stm << "Actor::referenceLocalActor;" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << ";" << pactorId << ";Null\n";
-        Actor::appendRefLog(getAsyncNode(),stm.str());
-    #endif
+    TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), pactorId, "null")
     
-    return ActorReference<_AsyncActor>(*this, dynamic_cast<_AsyncActor &>(getReferenceToLocalActor(pactorId)), false);
+    return ActorReference<_Actor>(*this, dynamic_cast<_Actor &>(getReferenceToLocalActor(pactorId)), false);
 }
 
-template <class _AsyncActor> Actor::ActorReference<_AsyncActor> Actor::newReferencedActor()
+template <class _Actor> Actor::ActorReference<_Actor> Actor::newReferencedActor()
 {
-    _AsyncActor &actor = newActor<_AsyncActor>(*asyncNode);
+    _Actor &actor = newActor<_Actor>(*asyncNode);
     
-    #ifdef DEBUG_REF
-        std::ostringstream stm;
-        stm << "Actor::newReferencedActor;" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";Null\n";
-        Actor::appendRefLog(getAsyncNode(),stm.str());
-    #endif
-
+    TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
+    
     try
     {
-        return ActorReference<_AsyncActor>(*this, actor);
+        return ActorReference<_Actor>(*this, actor);
     }
     catch (CircularReferenceException &)
     {
@@ -3196,20 +3202,16 @@ template <class _AsyncActor> Actor::ActorReference<_AsyncActor> Actor::newRefere
     }
 }
 
-template <class _AsyncActor, class _AsyncActorInit>
-Actor::ActorReference<_AsyncActor> Actor::newReferencedActor(const _AsyncActorInit &init)
+template <class _Actor, class _ActorInit>
+Actor::ActorReference<_Actor> Actor::newReferencedActor(const _ActorInit &init)
 {
-    _AsyncActor &actor = newActor<_AsyncActor>(*asyncNode, init);
+    _Actor &actor = newActor<_Actor>(*asyncNode, init);
 
-    #ifdef DEBUG_REF
-        std::ostringstream stm;
-        stm << "Actor::newReferencedActor;" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-        Actor::appendRefLog(getAsyncNode(),stm.str());
-    #endif
-
+    TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
+    
     try
     {
-        return ActorReference<_AsyncActor>(*this, actor);
+        return ActorReference<_Actor>(*this, actor);
     }
     catch (CircularReferenceException &)
     {
@@ -3218,26 +3220,22 @@ Actor::ActorReference<_AsyncActor> Actor::newReferencedActor(const _AsyncActorIn
     }
 }
 
-template <class _AsyncActor> Actor::ActorReference<_AsyncActor> Actor::newReferencedSingletonActor()
+template <class _Actor> Actor::ActorReference<_Actor> Actor::newReferencedSingletonActor()
 {
-    SingletonActorIndex singletonActorIndex = getSingletonActorIndex<_AsyncActor>();
+    SingletonActorIndex singletonActorIndex = getSingletonActorIndex<_Actor>();
     Actor *actor = getSingletonActor(singletonActorIndex);
     if (actor != 0)
     {
-        assert(dynamic_cast<_AsyncActor *>(actor) != 0);
+        assert(dynamic_cast<_Actor *>(actor) != 0);
 
-        #ifdef DEBUG_REF
-            std::ostringstream stm;
-            stm << "Actor::newReferencedSingletonActor;" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor->actorId << ";" << cppDemangledTypeInfoName(typeid(*actor)) << "\n";
-            Actor::appendRefLog(getAsyncNode(),stm.str());
-        #endif
-
-        return ActorReference<_AsyncActor>(*this, static_cast<_AsyncActor &>(*actor));
+        TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor->actorId, cppDemangledTypeInfoName(typeid(*actor)))
+        
+        return ActorReference<_Actor>(*this, static_cast<_Actor &>(*actor));
     }
     reserveSingletonActor(singletonActorIndex);
     try
     {
-        ActorReference<_AsyncActor> ret = newReferencedActor<_AsyncActor>();
+        ActorReference<_Actor> ret = newReferencedActor<_Actor>();
         setSingletonActor(singletonActorIndex, *ret);
         return ret;
     }
@@ -3248,41 +3246,33 @@ template <class _AsyncActor> Actor::ActorReference<_AsyncActor> Actor::newRefere
     }
 }
 
-template<class _AsyncActor>
+template<class _Actor>
 const Actor::ActorId& Actor::newUnreferencedActor()
 {
-	_AsyncActor& actor = newActor<_AsyncActor>(*asyncNode);
+	_Actor& actor = newActor<_Actor>(*asyncNode);
 
-    #ifdef DEBUG_REF
-        std::ostringstream stm;
-        stm << "Actor::newUnreferencedActor;" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-        Actor::appendRefLog(getAsyncNode(),stm.str());
-    #endif
+    TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
     
 	return actor.getActorId();
 }
 
-template <class _AsyncActor, class _AsyncActorInit>
-Actor::ActorReference<_AsyncActor> Actor::newReferencedSingletonActor(const _AsyncActorInit &init)
+template <class _Actor, class _ActorInit>
+Actor::ActorReference<_Actor> Actor::newReferencedSingletonActor(const _ActorInit &init)
 {
-    SingletonActorIndex singletonActorIndex = getSingletonActorIndex<_AsyncActor>();
+    SingletonActorIndex singletonActorIndex = getSingletonActorIndex<_Actor>();
     Actor *actor = getSingletonActor(singletonActorIndex);
     if (actor != 0)
     {
-        assert(dynamic_cast<_AsyncActor *>(actor) != 0);
+        assert(dynamic_cast<_Actor *>(actor) != 0);
         
-        #ifdef DEBUG_REF
-            std::ostringstream stm;
-            stm << "Actor::newReferencedSingletonActor;" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor->actorId << ";" << cppDemangledTypeInfoName(typeid(*actor)) << "\n";
-            Actor::appendRefLog(getAsyncNode(),stm.str());
-        #endif
-
-        return ActorReference<_AsyncActor>(*this, static_cast<_AsyncActor &>(*actor));
+        TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor->actorId, cppDemangledTypeInfoName(typeid(*actor)))
+        
+        return ActorReference<_Actor>(*this, static_cast<_Actor &>(*actor));
     }
     reserveSingletonActor(singletonActorIndex);
     try
     {
-        ActorReference<_AsyncActor> ret = newReferencedActor<_AsyncActor, _AsyncActorInit>(init);
+        ActorReference<_Actor> ret = newReferencedActor<_Actor, _ActorInit>(init);
         setSingletonActor(singletonActorIndex, *ret);
         return ret;
     }
@@ -3293,31 +3283,36 @@ Actor::ActorReference<_AsyncActor> Actor::newReferencedSingletonActor(const _Asy
     }
 }
 
-template<class _AsyncActor, class _AsyncActorInit>
-const Actor::ActorId& Actor::newUnreferencedActor(const _AsyncActorInit& init)
+template<class _Actor, class _ActorInit>
+const Actor::ActorId& Actor::newUnreferencedActor(const _ActorInit& init)
 {
-	_AsyncActor& actor = newActor<_AsyncActor>(*asyncNode, init);
+	_Actor& actor = newActor<_Actor>(*asyncNode, init);
 
-    #ifdef DEBUG_REF
-        std::ostringstream stm;
-        stm << "Actor::newUnreferencedActor;" << actorId << ";" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-        Actor::appendRefLog(getAsyncNode(),stm.str());
-    #endif
+    TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
     
 	return actor.getActorId();
 }
 
-template <class _AsyncActor> _AsyncActor &Actor::newActor(AsyncNode &asyncNode)
+// static
+template <class _Actor>
+_Actor& Actor::newActor(AsyncNode &asyncNode)
 {
-    return *new (AllocatorBase(asyncNode).allocate(sizeof(ActorWrapper<_AsyncActor>)))
-        ActorWrapper<_AsyncActor>(asyncNode);
+    auto *inst = new (AllocatorBase(asyncNode).allocate(sizeof(ActorWrapper<_Actor>))) ActorWrapper<_Actor>(asyncNode);
+    
+    // inst->onAdded(asyncNode);
+    
+    return *inst;
 }
 
-template <class _AsyncActor, class _AsyncActorInit>
-_AsyncActor &Actor::newActor(AsyncNode &asyncNode, const _AsyncActorInit &init)
+// static
+template <class _Actor, class _ActorInit>
+_Actor& Actor::newActor(AsyncNode &asyncNode, const _ActorInit &init)
 {
-    return *new (AllocatorBase(asyncNode).allocate(sizeof(ActorWrapper<_AsyncActor>)))
-        ActorWrapper<_AsyncActor>(asyncNode, init);
+    auto *inst = new (AllocatorBase(asyncNode).allocate(sizeof(ActorWrapper<_Actor>))) ActorWrapper<_Actor>(asyncNode, init);
+    
+    // inst->onAdded(asyncNode);
+    
+    return *inst;
 }
 
 const char *Actor::Event::newCString(const AllocatorBase &a, const char *s)
@@ -3488,7 +3483,6 @@ inline std::ostream &operator<<(std::ostream &s, const Actor::Event::property_ty
 }
 }
 
-#ifdef TREDZONE_CPP11_SUPPORT
 #include <functional>
 namespace std
 {
@@ -3500,4 +3494,4 @@ template <> struct hash<tredzone::Actor::ActorId>
     }
 };
 }
-#endif
+

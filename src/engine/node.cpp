@@ -10,6 +10,8 @@
 
 #include "trz/engine/internal/node.h"
 
+using namespace std;
+
 namespace tredzone
 {
 
@@ -17,7 +19,7 @@ namespace tredzone
 volatile bool AsyncNodeAllocator::debugActivateMemoryLeakBacktraceFlag = false;
 #endif
 
-AsyncNodeBase::StaticShared AsyncNodeBase::staticShared;
+AsyncNodeBase::StaticShared AsyncNodeBase::s_StaticShared;
 
 Actor::EventTable::EventTable(void *pdeallocatePointer) noexcept : nodeActorId(0),
                                                                         asyncActor(0),
@@ -165,28 +167,28 @@ void AsyncNodesHandle::ReaderSharedHandle::init(WriterSharedHandle &writerShared
 }
 
 void AsyncNodesHandle::ReaderSharedHandle::dispatchUnreachableNodes(
-    Actor::OnUnreachableChain &asyncActorOnUnreachableChain,
+    Actor::OnUnreachableChain &actorOnUnreachableChain,
     Shared::UnreachableNodeConnectionChain &sharedUnreachableNodeConnectionChain, NodeId writerNodeId,
     AsyncExceptionHandler &asyncExceptionHandler) noexcept
 {
-    assert(!asyncActorOnUnreachableChain.empty());
+    assert(!actorOnUnreachableChain.empty());
     assert(!sharedUnreachableNodeConnectionChain.empty());
-    Actor::OnUnreachableChain localAsyncActorOnUnreachableChain;
-    localAsyncActorOnUnreachableChain.swap(asyncActorOnUnreachableChain);
-    assert(asyncActorOnUnreachableChain.empty());
-    for (Actor::OnUnreachableChain::iterator i = localAsyncActorOnUnreachableChain.begin(),
-                                                  endi = localAsyncActorOnUnreachableChain.end();
+    Actor::OnUnreachableChain localActorOnUnreachableChain;
+    localActorOnUnreachableChain.swap(actorOnUnreachableChain);
+    assert(actorOnUnreachableChain.empty());
+    for (Actor::OnUnreachableChain::iterator i = localActorOnUnreachableChain.begin(),
+                                                  endi = localActorOnUnreachableChain.end();
          i != endi; ++i)
     {
-        assert(i->onUnreachableChain == &asyncActorOnUnreachableChain);
-        i->onUnreachableChain = &localAsyncActorOnUnreachableChain;
+        assert(i->onUnreachableChain == &actorOnUnreachableChain);
+        i->onUnreachableChain = &localActorOnUnreachableChain;
     }
-    while (!localAsyncActorOnUnreachableChain.empty())
+    while (!localActorOnUnreachableChain.empty())
     {
-        Actor *asyncActor = localAsyncActorOnUnreachableChain.pop_front();
+        Actor *asyncActor = localActorOnUnreachableChain.pop_front();
         assert(asyncActor->eventTable.undeliveredEventCount > 0);
-        assert(asyncActor->onUnreachableChain == &localAsyncActorOnUnreachableChain);
-        (asyncActor->onUnreachableChain = &asyncActorOnUnreachableChain)->push_back(asyncActor);
+        assert(asyncActor->onUnreachableChain == &localActorOnUnreachableChain);
+        (asyncActor->onUnreachableChain = &actorOnUnreachableChain)->push_back(asyncActor);
         for (Shared::UnreachableNodeConnectionChain::iterator i = sharedUnreachableNodeConnectionChain.begin(),
                                                               endi = sharedUnreachableNodeConnectionChain.end();
              i != endi; ++i)
@@ -520,27 +522,29 @@ void AsyncNodeManager::shutdown() noexcept
     memoryBarrier();
 }
 
-AsyncNodeBase::AsyncNodeBase(AsyncNodeManager &pnodeManager)
+    AsyncNodeBase::AsyncNodeBase(AsyncNodeManager &pnodeManager)
     : // throw (std::bad_alloc)
       singletonActorIndex(StaticShared::SINGLETON_ACTOR_INDEX_SIZE, SingletonActorIndexEntry(),
                           Actor::AllocatorBase(nodeAllocator)),
-      actorCount(0), freeEventTable(0), nodeManager(pnodeManager), lastNodeConnectionId(0),
+      m_ActorCount(0), freeEventTable(0), nodeManager(pnodeManager), lastNodeConnectionId(0),
       eventAllocatorPageSize(nodeManager.getEventAllocatorPageSize()), loopUsagePerformanceCounterIncrement(0)
 {
     assert(std::numeric_limits<Actor::SingletonActorIndex>::max() >= StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
 }
 
-AsyncNodeBase::~AsyncNodeBase() noexcept
+//---- AsyncNodeBASE DTOR ------------------------------------------------------
+
+    AsyncNodeBase::~AsyncNodeBase() noexcept
 {
     assert(singletonActorIndexChain.empty());
-    assert(actorCount == 0);
+    assert(m_ActorCount == 0);
     assert(asyncActorChain.empty());
-    assert(destroyedAsyncActorChain.empty());
-    assert(asyncActorOnUnreachableChain.empty());
+    assert(destroyedActorChain.empty());
+    assert(actorOnUnreachableChain.empty());
     assert(inUseNodeConnectionChain.empty());
-    while (!nodeActorCountListenerChain.empty())
+    while (!m_NodeActorCountListenerChain.empty())
     {
-        nodeActorCountListenerChain.front()->unsubscribe();
+        m_NodeActorCountListenerChain.front()->unsubscribe();
     }
     while (!asyncActorCallbackChain.empty())
     {
@@ -573,17 +577,16 @@ void AsyncNodeBase::StaticShared::AbsoluteEventIds::addEventId(Actor::EventId ev
 {
     if (eventNameIdMap.find(absoluteEventId) != eventNameIdMap.end())
     {
-        throw Actor::Event::DuplicateAbsoluteEventIdException();
+        throw Actor::Event::DuplicateAbsoluteEventIdException();            // absolute event id (string) must be unique!
     }
-    std::pair<EventIdNameMap::iterator, bool> retInsert =
-        eventIdNameMap.insert(EventIdNameMap::value_type(eventId, absoluteEventId));
+    std::pair<EventIdNameMap::iterator, bool> retInsert = eventIdNameMap.insert(EventIdNameMap::value_type(eventId, absoluteEventId));
     assert(retInsert.second == true);
     try
     {
 #ifndef NDEBUG
         std::pair<EventNameIdMap::iterator, bool> debugRetInsert =
 #endif
-            eventNameIdMap.insert(EventNameIdMap::value_type(retInsert.first->second.c_str(), eventId));
+        eventNameIdMap.insert(EventNameIdMap::value_type(retInsert.first->second.c_str(), eventId));
         assert(debugRetInsert.second);
     }
     catch (...)
@@ -643,6 +646,8 @@ void AsyncNodeBase::StaticShared::AbsoluteEventIds::debugCheckMaps() const
 }
 #endif
 
+//---- AsyncNode CTOR ----------------------------------------------------------
+
 /**
  * throw (std::bad_alloc, UndefinedCoreException, CoreInUseException)
  */
@@ -656,7 +661,7 @@ void AsyncNodeBase::StaticShared::AbsoluteEventIds::debugCheckMaps() const
 #ifndef NDEBUG
         debugSynchronizePostBarrierFlag(false),
 #endif
-        m_RefMapperPtr(IRefMapper::Create()), m_RefMapper(*m_RefMapperPtr)
+        m_RefMapperPtr(IRefMapper::Create(*this)), m_RefMapper(*m_RefMapperPtr)
     {
         assert(nodeHandle.node == 0);
         nodeHandle.node = this;
@@ -678,7 +683,7 @@ catch (AsyncNodeManager::NodeInUseException &)
     throw CoreInUseException();
 }
 
-//---- DTOR --------------------------------------------------------------------
+//---- AsyncNode DTOR ----------------------------------------------------------
 
     AsyncNode::~AsyncNode() noexcept
 {
@@ -686,7 +691,7 @@ catch (AsyncNodeManager::NodeInUseException &)
     nodeHandle.getWriterSharedHandle(id).cl2.shared.writeCache.freeEventAllocatorPageChain.push_back(
         usedlocalEventAllocatorPageChain);
         
-    #ifdef DEBUG_REF
+    #ifdef TRACE_REF
         std::ofstream refLogFile;
         
         std::ostringstream stm;
@@ -808,8 +813,11 @@ void AsyncNode::Thread::run(CacheLineAlignedObject<AsyncNode> &node) noexcept
     assert(runFlag == false);
     assert(inThreadNode != 0);
     *inThreadNode = &node;
+    
     memoryBarrier();
+    
     runFlag = true;
+    
     memoryBarrier();
 }
 
@@ -842,21 +850,31 @@ void AsyncNode::Thread::inThread(void *pthread)
                 {
                 }
                 memoryBarrier();
+                
                 thread.inThreadExceptionFlag = true;
+                
                 memoryBarrier();
+                
                 return;
             }
             catch (...)
             {
                 memoryBarrier();
+                
                 thread.inThreadExceptionFlag = true;
+                
                 memoryBarrier();
+                
                 return;
             }
             thread.inThreadNode = &node;
+            
             memoryBarrier();
+            
             thread.inThreadFlag = true;
+            
             memoryBarrier();
+            
             if (redZoneFlag)
             {
                 threadSetRealTime(false, ThreadRealTimeParam()); // first switch back to normal priority to enable
@@ -866,9 +884,13 @@ void AsyncNode::Thread::inThread(void *pthread)
             for (; !thread.runFlag; threadSleep())
             {
             }
+            
             memoryBarrier();
+            
             thread.inThreadFlag = false;
+            
             memoryBarrier();
+            
             if (node == 0)
             {
                 return;
@@ -964,4 +986,71 @@ const char *AsyncNode::Thread::Exception::what() const noexcept
     }
     return "<unknown exception>";
 }
+
+void AsyncNode::onNodeActorCountChange_LL(const int delta, const Actor *actor) noexcept
+{
+    #ifdef DTOR_DEBUG
+        cout << "AsyncNode::onNodeActorCountChange_LL(delta = " << delta << ")" << endl;
+    #endif
+    
+    assert((int64_t)m_ActorCount + delta >= 0);
+    
+    assert((std::abs(delta) == 1));
+    assert(actor);
+    
+    const size_t oldCount = m_ActorCount;
+    
+    // update Sleem's counter
+    m_ActorCount = (size_t)((int64_t)m_ActorCount + delta);
+    
+    // update my counter
+    if (delta == 1)
+    {
+        m_RefMapper.onActorAdded(actor);
+    }
+    else if (delta == -1)
+    {
+        m_RefMapper.onActorRemoved(actor);
+    }
+    
+    const size_t newCount = m_ActorCount;
+    
+    if (newCount == 0)      stop();         // WTF? [PL]
+    
+    // is swapping chains?
+    NodeActorCountListener::Chain tmp;
+    
+    tmp.swap(m_NodeActorCountListenerChain);
+    
+    for (NodeActorCountListener::Chain::iterator it = tmp.begin(), endi = tmp.end(); it != endi; ++it)
+    {
+        assert(it->chain == &m_NodeActorCountListenerChain);
+        it->chain = &tmp;
+    }
+    
+    // tries to do a splice?
+    while (!tmp.empty())
+    {
+        NodeActorCountListener  &listener = *tmp.pop_front();
+        
+        (listener.chain = &m_NodeActorCountListenerChain)->push_back(&listener);
+        
+        listener.onNodeActorCountDiff(oldCount, newCount);
+    }
 }
+
+//---- On Actor Added ----------------------------------------------------------
+
+void    AsyncNode::onActorAdded(Actor *actor)
+{
+    onNodeActorCountChange_LL(1, actor);
+}
+
+//---- On Node Removed ---------------------------------------------------------
+
+void    AsyncNode::onActorRemoved(Actor *actor)
+{
+    onNodeActorCountChange_LL(-1, actor);    
+}
+    
+} // namespace tredzone

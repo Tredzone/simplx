@@ -62,15 +62,14 @@ namespace tredzone
 
 class Engine;
 class AsyncNodeManager;
-class AsyncEngineCustomEventLoopFactory;
-class AsyncEngineToEngineConnector;
-typedef Engine Engine;
+class EngineCustomEventLoopFactory;
+class EngineToEngineConnector;
 
 /**
  * @brief Asynchronous exception handler that contains a Mutex that is locked for screen output.
  * onEventException() and onUnreachableException() can be specialized by inheritance. These
  * methods are called by the engine under mutex-lock.
- * In case of specialization, use Engine::StartSequence::setAsyncExceptionHandler() method
+ * In case of specialization, use Engine::StartSequence::setExceptionHandler() method
  * to set the reference of an external exception-handler.
  * <br><b>The external exception-handler instance must outlive the engine instance.</b>
  */
@@ -99,13 +98,13 @@ class AsyncExceptionHandler
 /**
  * @brief Base-class to event-loop.
  */
-class AsyncEngineEventLoop
+class EngineEventLoop
 {
   public:
     /** @brief Default constructor */
-    AsyncEngineEventLoop() noexcept;
+    EngineEventLoop() noexcept;
     /** @brief Default destructor */
-    virtual ~AsyncEngineEventLoop() noexcept;
+    virtual ~EngineEventLoop() noexcept;
     /** @brief Forces runWhileNotInterrupted() method to return */
     inline void interrupt() noexcept
     {
@@ -146,7 +145,7 @@ class AsyncEngineEventLoop
 
   private:
     friend class AsyncNode;
-    friend class AsyncEngineCustomEventLoopFactory;
+    friend class EngineCustomEventLoopFactory;
 
     AsyncNode *asyncNode;
     bool *interruptFlag;
@@ -165,11 +164,11 @@ class AsyncEngineEventLoop
 /**
  * @brief Base-class to specialize the engine's event-loop.
  * Specialization is achieved by overriding virtual newEventLoop() method.
- * In case of specialization, use Engine::StartSequence::setAsyncEngineCustomEventLoopFactory()
+ * In case of specialization, use Engine::StartSequence::setEngineCustomEventLoopFactory()
  * method to set the reference of an external event-loop-factory.
  * <br><b>The external event-loop-factory instance must outlive the engine instance.</b>
  */
-class AsyncEngineCustomEventLoopFactory
+class EngineCustomEventLoopFactory
 {
   public:
     class DefaultEventLoop;
@@ -178,7 +177,7 @@ class AsyncEngineCustomEventLoopFactory
     /**
      * @brief Default engine's event-loop
      */
-    class DefaultEventLoop : public AsyncEngineEventLoop
+    class DefaultEventLoop : public EngineEventLoop
     {
       protected:
         virtual void run() noexcept;
@@ -218,22 +217,22 @@ class AsyncEngineCustomEventLoopFactory
             other.eventLoop = 0;
             return *this;
         }
-        inline AsyncEngineEventLoop *operator->() noexcept
+        inline EngineEventLoop *operator->() noexcept
         {
             assert(eventLoop != 0);
             return eventLoop;
         }
-        inline const AsyncEngineEventLoop *operator->() const noexcept
+        inline const EngineEventLoop *operator->() const noexcept
         {
             assert(eventLoop != 0);
             return eventLoop;
         }
-        inline AsyncEngineEventLoop &operator*() noexcept
+        inline EngineEventLoop &operator*() noexcept
         {
             assert(eventLoop != 0);
             return *eventLoop;
         }
-        inline const AsyncEngineEventLoop &operator*() const noexcept
+        inline const EngineEventLoop &operator*() const noexcept
         {
             assert(eventLoop != 0);
             return *eventLoop;
@@ -248,13 +247,13 @@ class AsyncEngineCustomEventLoopFactory
         }
 
       private:
-        mutable AsyncEngineEventLoop *eventLoop;
+        mutable EngineEventLoop *eventLoop;
 
-        EventLoopAutoPointer(AsyncEngineEventLoop *eventLoop) noexcept : eventLoop(eventLoop) {}
+        EventLoopAutoPointer(EngineEventLoop *eventLoop) noexcept : eventLoop(eventLoop) {}
     };
 
     /** @brief Default destructor */
-    virtual ~AsyncEngineCustomEventLoopFactory() {}
+    virtual ~EngineCustomEventLoopFactory() {}
     /**
      * @brief Instantiates a new event-loop.
      * @return Smart-pointer to a new event-loop instance reference.
@@ -270,15 +269,15 @@ class AsyncEngineCustomEventLoopFactory
  * A core-actor is run on every event-loop (cpu-core).
  * By default DefaultCoreActor is used.
  * Specialization is achieved by overriding virtual newCustomCoreActor() method.
- * In case of specialization, use Engine::StartSequence::setAsyncEngineCustomCoreActorFactory()
+ * In case of specialization, use Engine::StartSequence::setEngineCustomCoreActorFactory()
  * method to set the reference of an external core-actor-factory.
  * <br><b>The external core-actor-factory instance must outlive the engine instance.</b>
  */
-class AsyncEngineCustomCoreActorFactory
+class EngineCustomCoreActorFactory
 {
   public:
     /** @brief Default destructor */
-    virtual ~AsyncEngineCustomCoreActorFactory() noexcept {}
+    virtual ~EngineCustomCoreActorFactory() noexcept {}
     /**
      * @brief Instantiates a new core-actor.
      * @param engine reference to current engine's instance.
@@ -314,9 +313,6 @@ class AsyncEngineCustomCoreActorFactory
 class IEngine
 {
 public:
-    // ctor
-    IEngine()   {};
-    
     virtual ~IEngine() = default;
 };
 
@@ -325,7 +321,7 @@ public:
  *
  * The Engine manages the Actor's life cycle, event distribution, callback...
  */
-class Engine: public IEngine
+class Engine: public virtual IEngine
 {
   public:
     static const int SDK_ARCHITECTURE = 1;                                      /**< Hardware specific identifier */
@@ -460,7 +456,7 @@ class Engine: public IEngine
      * This Actor is identified by a service-tag.
      * Any Actor during runtime can ask the ServiceIndex for the ActorId corresponding to a given service-tag.
      * @note service-tag must implement <code>static const char* name() throw()</code> public method,
-     * or inherit from AsyncService which contains a default name method.
+     * or inherit from Service which contains a default name method.
      */
     class ServiceIndex
     {
@@ -479,7 +475,8 @@ class Engine: public IEngine
          * @brief Get the ActorId associated to the given service-tag (_Service)
          * @return Found ActorId or null if not found
          */
-        template <class _Service> const Actor::ActorId &getServiceActorId() const noexcept
+        template <class _Service>
+        const Actor::ActorId &getServiceActorId() const noexcept
         {
             int i = 0;
             for (const unsigned index = getIndexValue<_Service>();
@@ -496,7 +493,8 @@ class Engine: public IEngine
          * @brief Set Registry value for given service-tag (_Service)
          * @throws UndersizedException is thrown if ServiceIndex has reached the MAX_SIZE value. ie: registry is full.
          */
-        template <class _Service> void setServiceActorId(const Actor::ActorId &actorId)
+        template <class _Service>
+        void setServiceActorId(const Actor::ActorId &actorId)
         {
             int i = 0;
             unsigned index = getIndexValue<_Service>();
@@ -513,7 +511,7 @@ class Engine: public IEngine
         }
 
       private:
-        friend class AsyncEngineToEngineConnector;
+        friend class EngineToEngineConnector;
         struct Table
         {
             unsigned index;
@@ -573,7 +571,7 @@ class Engine: public IEngine
          * the service-index. However the actor will still be part of the service-workflow.
          * Multiple actors can be declared as service using this service-tag.
          */
-        struct AnonymousService : AsyncService
+        struct AnonymousService : Service
         {
         };
 
@@ -687,19 +685,19 @@ class Engine: public IEngine
          * (fatal)
          * @see AsyncExceptionHandler
          */
-        void setAsyncExceptionHandler(AsyncExceptionHandler &) noexcept;
+        void setExceptionHandler(AsyncExceptionHandler &) noexcept;
         /**
          * @brief Customize CoreActor that is run on every core.
-         * AsyncEngineCustomCoreActorFactory reference is saved, thus it must survive Engine's life-cycle.
-         * @param AsyncEngineCustomCoreActorFactory specialization
+         * EngineCustomCoreActorFactory reference is saved, thus it must survive Engine's life-cycle.
+         * @param EngineCustomCoreActorFactory specialization
          */
-        void setAsyncEngineCustomCoreActorFactory(AsyncEngineCustomCoreActorFactory &) noexcept;
+        void setEngineCustomCoreActorFactory(EngineCustomCoreActorFactory &) noexcept;
         /**
          * @brief Customize EventLoop that is run on every core.
-         * AsyncEngineCustomEventLoopFactory reference is saved, thus it must survive Engine's life-cycle.
-         * @param AsyncEngineCustomEventLoopFactory specialization
+         * EngineCustomEventLoopFactory reference is saved, thus it must survive Engine's life-cycle.
+         * @param EngineCustomEventLoopFactory specialization
          */
-        void setAsyncEngineCustomEventLoopFactory(AsyncEngineCustomEventLoopFactory &) noexcept;
+        void setEngineCustomEventLoopFactory(EngineCustomEventLoopFactory &) noexcept;
         /**
          * @brief Set the default maximum Event page size that is used by the Event Allocator.
          * By default DEFAULT_EVENT_ALLOCATOR_PAGE_SIZE is used.
@@ -713,25 +711,25 @@ class Engine: public IEngine
         void setThreadStackSizeByte(size_t) noexcept;
         /**
          * @brief Get a pointer to the previously set exception-handler,
-         * using setAsyncExceptionHandler().
+         * using setExceptionHandler().
          * @return pointer to the previously set exception-handler.
          * 0 if no exception-handler was set.
          */
         AsyncExceptionHandler *getAsyncExceptionHandler() const noexcept;
         /**
          * @brief Get a pointer to the previously set core-actor-factory,
-         * using setAsyncEngineCustomCoreActorFactory().
+         * using setEngineCustomCoreActorFactory().
          * @return pointer to the previously set core-actor-factory.
          * 0 if no core-actor-factory was set.
          */
-        AsyncEngineCustomCoreActorFactory *getAsyncEngineCustomCoreActorFactory() const noexcept;
+        EngineCustomCoreActorFactory *getEngineCustomCoreActorFactory() const noexcept;
         /**
          * @brief Get a pointer to the previously set event-loop-factory,
-         * using setAsyncEngineCustomEventLoopFactory().
+         * using setEngineCustomEventLoopFactory().
          * @return pointer to the previously set event-loop-factory.
          * 0 if no event-loop-factory was set.
          */
-        AsyncEngineCustomEventLoopFactory *getAsyncEngineCustomEventLoopFactory() const noexcept;
+        EngineCustomEventLoopFactory *getEngineCustomEventLoopFactory() const noexcept;
         /**
          * @brief Get the current EventAllocatorPageSize in bytes.
          * @return size in bytes
@@ -748,6 +746,7 @@ class Engine: public IEngine
          * @throws CoreSet::TooManyCoresException
          */
         CoreSet getCoreSet() const;
+
         /**
          * @brief Set the Engine's name.
          * The Engine's name is used to identify in a networked cluster.
@@ -759,6 +758,10 @@ class Engine: public IEngine
          * @return Engine name
          */
         const char *getEngineName() const noexcept;
+
+        template <typename _T>
+        void setUserData(_T *data);
+        
         /**
          * @brief Set the Engine's suffix.
          * The Engine's suffix is used to identify in a networked cluster. This must be unique.
@@ -819,12 +822,14 @@ class Engine: public IEngine
         RedZoneCoreIdList redZoneCoreIdList;
         ThreadRealTimeParam redZoneParam;
         AsyncExceptionHandler *asyncExceptionHandler;
-        AsyncEngineCustomCoreActorFactory *asyncEngineCustomCoreActorFactory;
-        AsyncEngineCustomEventLoopFactory *asyncEngineCustomEventLoopFactory;
+        EngineCustomCoreActorFactory *engineCustomCoreActorFactory;
+        EngineCustomEventLoopFactory *engineCustomEventLoopFactory;
         size_t eventAllocatorPageSizeByte;
         size_t threadStackSizeByte;
         std::string engineName;
         std::string engineSuffix;
+        
+        void    *m_UserData;
     };
 
     /**
@@ -938,10 +943,18 @@ class Engine: public IEngine
     static void debugActivateMemoryLeakBacktrace() noexcept;
 #endif
 
+    inline static Engine &getEngine() noexcept
+    {
+        assert(currentEngineTLS.get() != 0);
+        return *currentEngineTLS.get();
+    }
+    
+    void *getUserData(void) const noexcept;
+
   private:
     friend class Actor;
-    friend class AsyncEngineToEngineConnector;
-    friend class AsyncEngineEventLoop;
+    friend class EngineToEngineConnector;
+    friend class EngineEventLoop;
     struct NewCoreStarter
     {
         virtual ~NewCoreStarter() noexcept {}
@@ -960,25 +973,20 @@ class Engine: public IEngine
     const size_t threadStackSizeByte;
     const ThreadRealTimeParam redZoneParam;
     CacheLineAlignedObject<unsigned> regularActorsCoreCount;
-    std::unique_ptr<AsyncEngineCustomCoreActorFactory> defaultCoreActorFactory;
-    std::unique_ptr<AsyncEngineCustomEventLoopFactory> defaultEventLoopFactory;
+    std::unique_ptr<EngineCustomCoreActorFactory> defaultCoreActorFactory;
+    std::unique_ptr<EngineCustomEventLoopFactory> defaultEventLoopFactory;
     std::unique_ptr<AsyncNodeManager> nodeManager;
     ServiceIndex serviceIndex;
-    AsyncEngineCustomCoreActorFactory &customCoreActorFactory;
-    AsyncEngineCustomEventLoopFactory &customEventLoopFactory;
+    EngineCustomCoreActorFactory &customCoreActorFactory;
+    EngineCustomEventLoopFactory &customEventLoopFactory;
     static ThreadLocalStorage<Engine *> currentEngineTLS;
     char cacheLineTrailerPadding[CACHE_LINE_SIZE - 1];
 
-    inline static Engine &getEngine() noexcept
-    {
-        assert(currentEngineTLS.get() != 0);
-        return *currentEngineTLS.get();
-    }
     void start(const StartSequence &); // throw (std::bad_alloc, ...)
     void finish() noexcept;
     static void threadStartHook(void *);
-    Actor::ActorId newCore(CoreId, bool isRedZone,
-                                NewCoreStarter &); // throw (std::bad_alloc, CoreInUseException, ...)
+    Actor::ActorId newCore(CoreId, bool isRedZone, NewCoreStarter &); // throw (std::bad_alloc, CoreInUseException, ...)
+    void    *m_UserData;
 };
 
 class Engine::ServiceSingletonActor : public Actor
@@ -1016,7 +1024,8 @@ class Engine::ServiceSingletonActor : public Actor
 template <class _Actor, class _ActorInit>
 class Engine::ServiceActorWrapper : virtual public ActorBase, public _Actor
 {
-  public:
+public:
+
     inline ServiceActorWrapper(AsyncNode &pasyncNode, const _ActorInit &actorInit,
                                const Actor::ActorId &ppreviousServiceDestroyActorId, bool plastServiceFlag)
         : ActorBase(&pasyncNode), _Actor(actorInit),
@@ -1046,10 +1055,14 @@ class Engine::ServiceActorWrapper : virtual public ActorBase, public _Actor
             .deallocate(static_cast<ServiceActorWrapper *>(p), 1);
     }
 
-  private:
+private:
+    
     friend class StartSequence;
-    struct DestroyEventActor : Actor
+    
+    // 
+    struct DestroyEventActor : public Actor
     {
+    public:
         ServiceActorWrapper *serviceActor;
         const Actor::ActorId previousServiceDestroyActorId;
         /**
@@ -1070,6 +1083,7 @@ class Engine::ServiceActorWrapper : virtual public ActorBase, public _Actor
                 serviceActor->requestDestroy();
             }
         }
+        
         virtual void onDestroyRequest() noexcept
         {
             if (previousServiceDestroyActorId != tredzone::null)
@@ -1105,12 +1119,12 @@ class Engine::ServiceActorWrapper : virtual public ActorBase, public _Actor
     }
 };
 
-template <class _Service> struct AsyncEngineStartSequenceServiceTraits
+template <class _Service> struct EngineStartSequenceServiceTraits
 {
     static inline bool isAnonymous() noexcept { return false; }
 };
 
-template <> struct AsyncEngineStartSequenceServiceTraits<Engine::StartSequence::AnonymousService>
+template <> struct EngineStartSequenceServiceTraits<Engine::StartSequence::AnonymousService>
 {
     static inline bool isAnonymous() noexcept { return true; }
 };
@@ -1119,13 +1133,12 @@ template <class _Actor> Actor::ActorId Engine::newCore(CoreId coreId, bool isRed
 {
     struct NewActorCoreStarter : NewCoreStarter
     {
-		virtual Actor::ActorId start(AsyncNode& node) {
-		_Actor& actor = Actor::newActor<_Actor>(node);
-#ifdef DEBUG_REF
-    std::ostringstream stm;
-    stm << "NewActorCoreStarter::start;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-	Actor::appendRefLog(&node,stm.str());
-#endif
+		virtual Actor::ActorId start(AsyncNode& node)
+        {
+            _Actor& actor = Actor::newActor<_Actor>(node);
+
+            TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
+
 			return actor.getActorId();
 		}
 	};
@@ -1144,11 +1157,7 @@ Actor::ActorId Engine::newCore(CoreId coreId, bool isRedZone, const _ActorInit &
         {
 			_Actor& actor = Actor::newActor<_Actor>(node, actorInit);
             
-            #ifdef DEBUG_REF
-                std::ostringstream stm;
-                stm << "NewActorCoreStarter::start;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-                Actor::appendRefLog(&node,stm.str());
-            #endif
+            TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
             
 			return actor.getActorId();
 		}
@@ -1168,12 +1177,8 @@ template <class _Actor> void Engine::StartSequence::addActor(CoreId coreId)
 			_Actor  &actor = Actor::newActor<_Actor>(node);
             (void)actor;
             
-            #ifdef DEBUG_REF
-                std::ostringstream stm;
-                stm << "AddActorStarter::start;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-                Actor::appendRefLog(&node,stm.str());
-            #endif
-			
+            TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
+            
             return Actor::ActorId();
 		}
     };
@@ -1196,11 +1201,7 @@ void Engine::StartSequence::addActor(CoreId coreId, const _ActorInit &actorInit)
             _Actor  &actor = Actor::newActor<_Actor, _ActorInit>(node, this->actorInit);
             (void)actor;
             
-            #ifdef DEBUG_REF
-                std::ostringstream stm;
-                stm << "StartSequence::onStart;-1.-1;" << cppDemangledTypeInfoName(typeid(*this)) << ";" << actor.actorId << ";" << cppDemangledTypeInfoName(typeid(actor)) << "\n";
-                Actor::appendRefLog(&node,stm.str());
-            #endif
+            TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
             
 			return Actor::ActorId();
 		}
@@ -1231,7 +1232,7 @@ void Engine::StartSequence::addServiceActor(CoreId coreId, const _ActorInit &act
                 Actor::Allocator<ServiceActorWrapper<_Actor, _ActorInit>>(Actor::AllocatorBase(asyncNode))
                     .allocate(1)) ServiceActorWrapper<_Actor, _ActorInit>(asyncNode, this->actorInit,
                                                                           previousServiceDestroyActorId, isLastService);
-            if (AsyncEngineStartSequenceServiceTraits<_Service>::isAnonymous() == false)
+            if (EngineStartSequenceServiceTraits<_Service>::isAnonymous() == false)
             {
                 assert(engine.serviceIndex.getServiceActorId<_Service>() == tredzone::null);
                 engine.serviceIndex.setServiceActorId<_Service>(serviceActor.getActorId());
@@ -1240,7 +1241,7 @@ void Engine::StartSequence::addServiceActor(CoreId coreId, const _ActorInit &act
         }
     };
     unsigned serviceIndex = ServiceIndex::getIndexValue<_Service>();
-    if (AsyncEngineStartSequenceServiceTraits<_Service>::isAnonymous() == false)
+    if (EngineStartSequenceServiceTraits<_Service>::isAnonymous() == false)
     {
         serviceIndex = ServiceIndex::getIndexValue<_Service>();
         for (StarterChain::iterator i = starterChain.begin(), endi = starterChain.end(); i != endi; ++i)

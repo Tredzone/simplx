@@ -49,7 +49,7 @@ public:
 };
 
 // tag identifying Pong's service
-struct PongTag : public AsyncService{};
+struct PongTag : public Service{};
 
 //---- Ping Actor --------------------------------------------------------------
 
