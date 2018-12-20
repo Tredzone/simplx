@@ -24,7 +24,7 @@ Sub-sections: Added, Removed, Depreceted </br>
   - accompanying documentation
 - #undef TREDZONE_CHECK_CYCLICAL_REFS to skip cyclical reference checks in RELEASE mode (enabled by default)
 - docker_test.sh Bash script will now stop on compilation error
-- Raspberry Pi ARM support under Raspbian
+- Raspberry Pi ARM  support under Raspbian with cycle counter register (CCR) high-resolution timer
 
 
 ### Refactored
