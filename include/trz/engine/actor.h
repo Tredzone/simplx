@@ -1736,6 +1736,8 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             : ActorBase(&asyncNode)
         {
             // Actor::onAdded(asyncNode);
+            int i = 0;
+            (void)i;
         }
         
         // dtor
@@ -1756,19 +1758,19 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         inline
         void operator delete(void *p) noexcept
         {
-            // alex shrubb says crashes on gcc7, recommends
-            // AllocatorBase(*static_cast<ActorWrapper*>(static_cast<_Actor*>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);  
-
-            AllocatorBase(*static_cast<ActorWrapper *>(p)->Actor::asyncNode).deallocate(sizeof(ActorWrapper), p);
+            // crashes on gcc6 & 7, recommends
+            // AllocatorBase(*  static_cast<ActorWrapper *>(p)->_Actor::asyncNode).deallocate(sizeof(ActorWrapper), p);                      // bad (original)
+            // AllocatorBase(*static_cast<ActorWrapper *>(static_cast<_Actor *>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);    // ok (shrubb)
+            
+            // fix: don't walk around diamond-like classes to fetch a member variable
+            AllocatorBase(*(static_cast<ActorWrapper *>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);                           // ok
         }
         
+        // (we assume that this function must be implemented by STL allocator interface but is never called)
         inline
         void operator delete(void *, void *p) noexcept
         {
-            // alex shrubb says crashes on gcc7, recommends
-            // AllocatorBase(*static_cast<ActorWrapper*>(static_cast<_Actor*>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);  
-
-            AllocatorBase(*static_cast<ActorWrapper *>(p)->Actor::asyncNode).deallocate(sizeof(ActorWrapper), p);
+            AllocatorBase(*(static_cast<ActorWrapper *>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);                           // ok
         }
     };
     struct RetainedSingletonActorIndex
@@ -3297,6 +3299,7 @@ const Actor::ActorId& Actor::newUnreferencedActor(const _ActorInit& init)
 template <class _Actor>
 _Actor& Actor::newActor(AsyncNode &asyncNode)
 {
+    // placement new
     auto *inst = new (AllocatorBase(asyncNode).allocate(sizeof(ActorWrapper<_Actor>))) ActorWrapper<_Actor>(asyncNode);
     
     // inst->onAdded(asyncNode);

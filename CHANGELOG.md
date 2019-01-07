@@ -12,6 +12,12 @@ Sub-sections: Added, Removed, Depreceted </br>
 ### Refactored
 --->
 
+## [2.6.7] - 2019-01-07
+
+### bug fixes
+- fixed template resolution bug appearing under gcc 6/7 in include/trz/engine/actor.h in ActorWrapper::delete() where traversal of diamond-class inheritance would yield a corrupt pointer and trigger a segfault
+
+
 ## [2.6.6] - 2018-12-18
 
 ### Added
@@ -24,7 +30,7 @@ Sub-sections: Added, Removed, Depreceted </br>
   - accompanying documentation
 - #undef TREDZONE_CHECK_CYCLICAL_REFS to skip cyclical reference checks in RELEASE mode (enabled by default)
 - docker_test.sh Bash script will now stop on compilation error
-- Raspberry Pi ARM  support under Raspbian with cycle counter register (CCR) high-resolution timer
+- Raspberry Pi ARM support under Raspbian
 
 
 ### Refactored

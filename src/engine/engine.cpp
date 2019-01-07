@@ -511,12 +511,11 @@ void Engine::finish() noexcept
     nodeManager->shutdown();
     atomicSubAndFetch(&*regularActorsCoreCount, 1);
     
+    // crashes certain operations inactor destructors
     // nodeManager.reset();
     
     // dtor fix alex shrubb
-    
     delete nodeManager.get();
-
     memoryBarrier();
 
     nodeManager.release();
