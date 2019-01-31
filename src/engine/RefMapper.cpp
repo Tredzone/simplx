@@ -1,7 +1,7 @@
 /**
  * @file RefMapper.cpp
  * @brief per-core actor references centralized manager
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -58,6 +58,8 @@ public:
         
         const size_t    n_erased = m_LiveActorSet.erase(actor);
         assert(n_erased == 1);
+        
+        (void)n_erased;
     }
     
     size_t  getNumActors(void) const override
@@ -118,6 +120,8 @@ private:
         
         #ifdef DTOR_DEBUG
             cout << actor->getActorId() << "  " << cppDemangledTypeInfoName(typeid(*actor)) << endl;
+        #else
+            (void)actor;
         #endif
     }
     

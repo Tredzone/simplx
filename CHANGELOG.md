@@ -12,6 +12,12 @@ Sub-sections: Added, Removed, Depreceted </br>
 ### Refactored
 --->
 
+## [2.6.8] - 2019-01-31
+
+### bug fixes
+- fixed unused variable warning treated as error
+
+
 ## [2.6.7] - 2019-01-07
 
 ### bug fixes
