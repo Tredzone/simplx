@@ -1,7 +1,7 @@
 /**
  * @file maintest.cpp
  * @brief test main source
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -9,7 +9,11 @@
 
 launch specific test with, e.g.
 
-./testd.bin --gtest_filter=AsyncEventLoop.init
+ ./testd.bin --gtest_filter=AsyncEventLoop.init
+
+or
+
+ ./testd.bin --gtest_filter=AsyncEventLoop.*
 
 */
 

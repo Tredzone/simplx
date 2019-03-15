@@ -12,6 +12,36 @@ Sub-sections: Added, Removed, Depreceted </br>
 ### Refactored
 --->
 
+
+## [2.6.9] - 2019-03-15
+
+- upgraded to gcc 8.2 & clang 4.0 compatibility
+- removed Actor::Event::SerialBuffer from actor.h
+- renamed SerialBufferChain to SerialBuffer
+- rewrote SerialBuffer using ::mmap()
+  - no longer templetized
+  - no longer has constructor arguments
+
+
+### Deprecated
+
+- removed TREDZONE_SDK_IS_COMPILER_COMPATIBLE macro
+- removed TREDZONE_SDK_IS_DEBUG_RELEASE_COMPATIBLE macro
+- removed SDK_ARCHITECTURE constant
+- removed checkRuntimeCompatibility() static function
+- removed RuntimeCompatibilityExceptions:
+  E_COMPILER_VERSION
+  E_DEBUG_RELEASE
+- removed TRZ_DEBUG() macro
+
+
+### Enterprise
+- ServerTCPListenSocket & EngineToEngineSocketConnectorActor constructors take host (string) and port (int)
+  - for server, use "0.0.0.0" to listen on any interface
+- added e2e unit tests
+- changed e2e protocol headers to use 32-bit event type IDs
+
+
 ## [2.6.8] - 2019-01-31
 
 ### bug fixes

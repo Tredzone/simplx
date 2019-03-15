@@ -1,7 +1,7 @@
 /**
  * @file timeractor.cpp
  * @brief Simplx timer actor & proxy
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -146,7 +146,19 @@ void TimerProxy::SingletonActorEventHandler::onUndeliveredEvent(const GetEvent&)
 	throw NoServiceException();
 }
 
-} // namespace
+	// static
+    const Actor::ActorId& TimerProxy::getTimerServiceActorId(const Engine::ServiceIndex& serviceIndex)
+    {
+		const Actor::ActorId& ret = serviceIndex.getServiceActorId< service::Timer>();
+		if (ret == tredzone::null)
+        {
+			throw NoServiceException();
+		}
+		return ret;
+	}
 
-} // namespace
+
+} // namespace timer
+
+} // namespace tredzone
 

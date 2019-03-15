@@ -1,7 +1,7 @@
 /**
  * @file actor.h
  * @brief actor class
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -11,6 +11,7 @@
 #include <iostream>
 #include <iomanip>
 
+#include "trz/engine/event.h"
 #include "trz/engine/internal/cacheline.h"
 #include "trz/engine/internal/intrinsics.h"
 #include "trz/engine/internal/mdoublechain.h"
@@ -20,9 +21,15 @@
 #include "trz/engine/internal/stringstream.h"
 #include "trz/engine/internal/thread.h"
 #include "trz/engine/internal/RefMapper.h"
+#include "trz/util/enterprise.h"
+
+
 
 namespace tredzone
 {
+// import into namespace
+using std::string;
+using std::vector;
 
 class AsyncNode;
 struct AsyncNodeBase;
@@ -46,7 +53,7 @@ struct FeatureNotImplementedException : std::exception
 };
 
 /**
- * @fn void breakThrow(const std::exception &e) throw()
+ * @fn void breakThrow(const std::exception &e) noexcept
  * @brief exception-throwing wrapper
  * @param e std::exception
  * @note optionally break to debugger before throwing exception
@@ -62,10 +69,15 @@ template <class> class Accessor;
 
 struct ActorBase
 {
-  public:
-    ActorBase() : asyncNode(0) { breakThrow(std::runtime_error("illegal direct base instantiation")); }
+public:
+    ActorBase()
+        : asyncNode(nullptr)
+    {
+        breakThrow(std::runtime_error("illegal direct base instantiation"));
+    }
 
-  private:
+private:
+
     friend class Actor;
     friend class EngineToEngineConnector;
     friend class EngineToEngineSharedMemoryConnector;
@@ -86,8 +98,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
 {
   public:
     static const int MAX_NODE_COUNT     = 255; ///< Maximum number of parallel event-loops, with one event-loop per cpu-core.
-    static const int MAX_EVENT_ID_COUNT = 4096; ///< Maximum number of classes derived from Actor::Event that can
-                                                ///actually be instantiated at run-time.
+    static const int MAX_EVENT_ID_COUNT = 4096; ///< Maximum number of classes derived from Actor::Event that can be instantiated at run-time
     
     size_t  CountReferencesTo(void) const;
     size_t  CountRefDest(void) const;
@@ -164,6 +175,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             }
             m_RefDestChain->push_back(this);
             ++(m_SelfActor->m_ReferenceFromCount);
+            ENTERPRISE_0X5017(org.asyncNode, &org, &dest);
         }
         
         // dtor
@@ -191,7 +203,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             }
             return *this;
         }
-        inline Actor *getReferencedActor() const noexcept { return m_SelfActor; }
+        inline Actor *getReferencedActor() const noexcept 
+        {
+            return m_SelfActor; 
+        }
         
         // unref
         inline
@@ -246,7 +261,8 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
     
 //----- ActorReferenceBase END -------------------------------------------------
 
-  public:
+public:
+  
     typedef uint8_t CoreId; ///< Scalar type representing a physical cpu-core of a CPU, its value range is arbitrary
                             ///(hardware dependent).
     typedef uint8_t NodeId; ///< Scalar type representing a logical cpu-core of a CPU, its value range is compact (+1
@@ -278,6 +294,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             return "tredzone::Actor::AlreadyRegisterdEventHandlerException";
         }
     };
+    
     /**
      * @brief This exception is thrown when attempting to instantiate an actor while the engine is being shutdown.
      *
@@ -299,6 +316,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
             }
         }
     };
+    
     /**
      * @brief This exception is thrown when attempting to instantiate a reference (Actor::ActorReference)
      * to an actor using its actor-id cannot be achieved.
@@ -395,18 +413,10 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
          * // in here call to debugGetThreadId() is valid
          * #endif
          * \endcode
-         * This condition is also valid within assert() and TRZ_DEBUG() arguments' scope.
+         * This condition is also valid within assert() argument scope.
          * For instance:<br>
          * \code
          * assert(allocator.debugGetThreadId() == ThreadId::current());
-         * \endcode
-         * \code
-         * TRZ_DEBUG(
-         *     if (allocator.debugGetThreadId() != ThreadId::current()) {
-         *         doSomeThing();
-         *         exit(-1);
-         *     }
-         * )
          * \endcode
          * @return A reference to the event-loop thread in which it is safe to use this allocator instance.
          */
@@ -845,6 +855,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
     class InProcessActorId
     {
         friend struct Actor::EventBase;
+        friend class SerialInProcessActorId;
 
       public:
         /**
@@ -926,7 +937,9 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
          */
         inline NodeActorId getNodeActorId() const noexcept { return nodeActorId; }
 
-      protected:
+        EventTable* getEventTable(void) const noexcept { return eventTable; }
+
+    protected:
         /**
          * @brief Internal usage constructor.
          */
@@ -1267,6 +1280,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         {
         }
         inline ActorId(int) noexcept : InProcessActorId(0) {}
+        public : Actor* getEventTableActor(); //only use this method from the same core as the eventTable->asyncActor
     };
 #pragma pack(pop)
 
@@ -1294,6 +1308,14 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
      * @brief Getter to local event-loop (cpu-core) allocator.
      * @return A copy of a local event-loop (cpu-core) allocator.
      */
+
+       /**
+     * @brief Helper to get the ActorId associated to the given service-tag (_ServiceTag)
+     * @return Found ActorId or null if not found
+     */
+    template<class _ServiceTag>
+    const ActorId& getServiceActorId(void) const noexcept;
+    
     AllocatorBase getAllocator() const noexcept;
     /**
      * @brief Create a new typed actor-reference to an existing actor.
@@ -1697,6 +1719,7 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
     friend class EngineToEngineConnector;
     friend class EngineToEngineSharedMemoryConnector;
     friend class RefMapper;
+    ENTERPRISE_0X5032
     
     typedef MultiDoubleChainLink<Actor, 2u> super;
     typedef uint16_t SingletonActorIndex;
@@ -1745,25 +1768,27 @@ class Actor : private MultiDoubleChainLink<Actor, 2u>, virtual private ActorBase
         {
             _Actor &actor = static_cast<_Actor&>(*this);
             (void)actor;
-                
+            ENTERPRISE_0X5018(static_cast<Actor*>(&actor));
+
             TraceREF(actor.getAsyncNode(), __func__, actor.actorId, cppDemangledTypeInfoName(typeid(actor)), "-1.-1", "null")
         }
         
         template <class _ActorInit>
         inline ActorWrapper(AsyncNode &asyncNode, const _ActorInit &actorInit)
-            : ActorBase(&asyncNode), _Actor(actorInit)
+            : ActorBase(&asyncNode),
+            _Actor(actorInit)
         {
         }
         
         inline
         void operator delete(void *p) noexcept
         {
-            // crashes on gcc6 & 7, recommends
+            // crashes on gcc6 & 7
             // AllocatorBase(*  static_cast<ActorWrapper *>(p)->_Actor::asyncNode).deallocate(sizeof(ActorWrapper), p);                      // bad (original)
             // AllocatorBase(*static_cast<ActorWrapper *>(static_cast<_Actor *>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);    // ok (shrubb)
             
             // fix: don't walk around diamond-like classes to fetch a member variable
-            AllocatorBase(*(static_cast<ActorWrapper *>(p))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);                           // ok
+            AllocatorBase(*(static_cast<ActorWrapper *>(static_cast<_Actor *>(p)))->getAsyncNode()).deallocate(sizeof(ActorWrapper), p);                           // ok
         }
         
         // (we assume that this function must be implemented by STL allocator interface but is never called)
@@ -1906,33 +1931,56 @@ struct Actor::UndersizedException : std::bad_alloc
 
 struct Actor::EventBase
 {
-
-  public:
-    EventBase() : classId(0), sourceActorId(0), destinationActorId(0), routeOffset(0)
+public:
+  
+    EventBase()
+        : classId(0), sourceActorId(0), destinationActorId(0), routeOffset(0)
     {
         // should never instantiate EventBase or a derivative manually
         // Events are instatiated "in-place" by the engine inside pipe::push<>()
         breakThrow(std::runtime_error("illegal direct base instantiation"));
     }
 
-  private:
+private:
+  
     friend class Actor::Event;
     friend class AsyncExceptionHandler;
     friend class EngineToEngineConnectorEventFactory;
-    typedef uint16_t route_offset_type;
+    using route_offset_type = uint16_t;
 
-    Actor::EventId classId;
+    Actor::EventId          classId;
     Actor::InProcessActorId sourceActorId;
     Actor::InProcessActorId destinationActorId;
-    route_offset_type routeOffset;
+    route_offset_type       routeOffset;
 
-    EventBase(Actor::EventId _classId, Actor::InProcessActorId _sourceActorId,
-              Actor::InProcessActorId _destinationActorId, route_offset_type _routeOffset)
-        : classId(_classId), sourceActorId(_sourceActorId), destinationActorId(_destinationActorId),
-          routeOffset(_routeOffset)
+    EventBase(Actor::EventId _classId, Actor::InProcessActorId _sourceActorId, Actor::InProcessActorId _destinationActorId, route_offset_type _routeOffset)
+        : classId(_classId), sourceActorId(_sourceActorId), destinationActorId(_destinationActorId), routeOffset(_routeOffset)
     {
     }
 };
+
+namespace e2econnector
+{
+    // forward declare
+    class DicoTimer;
+    
+} // namespace e2econnector
+
+// cross-machine absolute event entry
+struct AbsoluteEventEntry
+{
+    AbsoluteEventEntry(const uint16_t &id, const string &s)
+        : m_Id(id), m_Name(s)
+    {
+    }
+    
+    const uint16_t    m_Id;
+    // Actor::string_type      m_Name;
+    const string      m_Name;
+};
+
+// absolute event dictionary
+using AbsoluteEventVector = vector<AbsoluteEventEntry>;     // , Actor::Allocator<AbsoluteEventEntry>>;
 
 /**
  * @brief Base-class for events used in:
@@ -1951,7 +1999,8 @@ struct Actor::EventBase
 #pragma pack(1)
 class Actor::Event : private MultiForwardChainLink<Event>, virtual private EventBase
 {
-  public:
+public:
+  
     class AllocatorBase;
     template <class T> class Allocator;
     typedef Property<Allocator<char>> property_type;
@@ -1965,143 +2014,18 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
      */
     struct DuplicateAbsoluteEventIdException : std::exception
     {
-        virtual const char *what() const noexcept
+        const char *what() const noexcept override
         {
             return "tredzone::Actor::Event::DuplicateAbsoluteEventIdException";
         }
     };
+    
+    using EventE2EDeserializeFunction = void (*)(EngineToEngineConnectorEventFactory &, const void *, size_t); ///< Function type for cluster-event deserialization (see isE2ECapable())
+    using EventE2ESerializeFunction = void (*)(SerialBuffer &, const Event &); ///< Function type for cluster-event serialization (see isE2ECapable())
+    
     /**
-     * @brief Double ended queue like, used in event serialization in cluster operations
-     * (see EventE2ESerializeFunction).
-     * This class is a wrapper to tredzone::SerialBufferChain.
+     * @brief Event reference placeholder used for event-name output operator specialization.
      */
-    class SerialBuffer : private SerialBufferChain<Actor::Allocator<char>>
-    {
-      public:
-        typedef SerialBufferChain<Actor::Allocator<char>> Base;
-        typedef Base::WriteMark WriteMark;
-
-        /**
-         * @brief Getter.
-         * @return true if this buffer is empty.
-         */
-        inline bool empty() const noexcept { return Base::empty(); }
-        /**
-         * @brief Getter.
-         * @return Byte count of this buffer content.
-         */
-        inline size_t size() const noexcept { return Base::size(); }
-        /**
-         * @brief Getter.
-         * @return const pointer to read-end of this buffer.
-         * @see SerialBufferChain::getCurrentReadBuffer().
-         */
-        inline const void *getCurrentReadBuffer() const noexcept { return Base::getCurrentReadBuffer(); }
-        /**
-         * @brief Getter.
-         * @return Contiguous byte count in this buffer from read-end (see getCurrentReadBuffer()).
-         * @attention The returned size can be greater than this actual buffer's content size.
-         * @see SerialBufferChain::getCurrentReadBufferSize().
-         *
-         */
-        inline size_t getCurrentReadBufferSize() const noexcept { return Base::getCurrentReadBufferSize(); }
-        /**
-         * @brief Removes bytes from this buffer's read-end.
-         * @param sz Bytes count to be removed from this buffer's read-end.
-         * @see SerialBufferChain::decreaseCurrentReadBufferSize().
-         */
-        inline void decreaseCurrentReadBufferSize(size_t sz) noexcept { Base::decreaseCurrentReadBufferSize(sz); }
-        /**
-         * @brief Getter.
-         * @return pointer to write-end of this buffer.
-         * @see SerialBufferChain::getCurrentWriteBuffer().
-         */
-        inline void *getCurrentWriteBuffer() const noexcept { return Base::getCurrentWriteBuffer(); }
-        /**
-         * @brief Getter.
-         * @return Contiguous byte count of this buffer from write-end (see getCurrentWriteBuffer()).
-         * @attention The returned size is not part of this buffer's content.
-         * Use increaseCurrentWriteBufferSize() to increase this buffer's content size.
-         * @see SerialBufferChain::getCurrentWriteBufferSize().
-         *
-         */
-        inline size_t getCurrentWriteBufferSize() const noexcept { return Base::getCurrentWriteBufferSize(); }
-        /**
-         * @brief Getter.
-         * @return Get position-mark to write-end of this buffer.
-         * @see SerialBufferChain::getCurrentWriteMark().
-         */
-        inline WriteMark getCurrentWriteMark() const noexcept { return Base::getCurrentWriteMark(); }
-        /**
-         * @brief Getter.
-         * @param mark position-mark within read-end and write-end of this buffer (see getCurrentWriteMark()).
-         * @return Contiguous byte count of this buffer from provided position-mark.
-         * @see SerialBufferChain::getWriteMarkBuffer().
-         */
-        inline void *getWriteMarkBuffer(const WriteMark &mark) const noexcept { return Base::getWriteMarkBuffer(mark); }
-        /**
-         * @brief Getter.
-         * @param mark position-mark within read-end and write-end of this buffer (see getCurrentWriteMark()).
-         * @return Contiguous byte count in this buffer from provided position-mark.
-         * @attention The returned size can be greater than this actual buffer's content size.
-         * @see SerialBufferChain::getWriteMarkBufferSize().
-         *
-         */
-        inline size_t getWriteMarkBufferSize(const WriteMark &mark) const noexcept
-        {
-            return Base::getWriteMarkBufferSize(mark);
-        }
-        /**
-         * @brief Adds bytes to this buffer's write-end.
-         * @param sz Bytes count to be added to this buffer's write-end.
-         * @see SerialBufferChain::increaseCurrentWriteBufferSize().
-         */
-        inline void increaseCurrentWriteBufferSize(size_t sz)
-        { // throw(std::bad_alloc)
-            Base::increaseCurrentWriteBufferSize(sz);
-        }
-        /**
-         * @brief Copies a provided source-buffer to this buffer at a provided position-mark.
-         * @attention It is the user's responsibility to make sure that this buffer
-         * has enough size starting the provided position-mark.
-         * <br>Example:
-         * \code
-         * void myFunction(SerialBuffer& serialBuffer) {
-         *     char sourceBuffer[] = "WHATEVER THE CONTENT";
-         *     if (sizeof(sourceBuffer) > serialBuffer.getCurrentWriteBufferSize()) {
-         *         SerialBuffer::WriteMark mark = getCurrentWriteMark();
-         *         serialBuffer.increaseCurrentWriteBufferSize(sizeof(sourceBuffer)); // make room before using
-         * copyWriteBuffer()
-         *         serialBuffer.copyWriteBuffer(sourceBuffer, sizeof(sourceBuffer), mark);
-         *     } else {
-         *         memcpy(serialBuffer.getCurrentWriteBuffer(), sizeof(sourceBuffer), sourceBuffer);
-         *         serialBuffer.increaseCurrentWriteBufferSize(sizeof(sourceBuffer));
-         *     }
-         * }
-         * \endcode
-         * @param srcBuffer source-buffer to copy from.
-         * @param srcBufferSz size to copy from source-buffer.
-         * @param mark This buffer's position-mark to copy at.
-         * @see SerialBufferChain::copyWriteBuffer().
-         */
-        inline void copyWriteBuffer(const void *srcBuffer, size_t srcBufferSz, const WriteMark &mark) const noexcept
-        {
-            Base::copyWriteBuffer(srcBuffer, srcBufferSz, mark);
-        }
-
-      private:
-        friend class EngineToEngineSerialConnector;
-
-        SerialBuffer(Actor &routeActor, size_t bufferSize) : Base(routeActor.getAllocator(), bufferSize) {}
-    };
-    typedef void (*EventE2EDeserializeFunction)(
-        EngineToEngineConnectorEventFactory &, const void *,
-        size_t); ///< Function type for cluster-event deserialization (see isE2ECapable())
-    typedef void (*EventE2ESerializeFunction)(
-        SerialBuffer &, const Event &); ///< Function type for cluster-event serialization (see isE2ECapable())
-                                        /**
-                                         * @brief Event reference placeholder used for event-name output operator specialization.
-                                         */
     struct OStreamName
     {
         const Event &event; ///< const reference to an event.
@@ -2210,13 +2134,16 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
      * @brief Getter.
      * @return true if this event was exchanged between two engines (processes).
      */
-    inline bool isRouted() const noexcept { return routeOffset != 0; }
+    bool isRouted() const noexcept
+    {
+        return routeOffset != 0;
+    }
     /**
      * @brief Getter.
      * @attention This method should only be called if the event was routed (see isRouted()).
      * @return true if this event was routed back to its source actor.
      */
-    inline bool isRouteToSource() const noexcept { return routeOffset != 0 && (routeOffset & 1) == 0; }
+    bool isRouteToSource() const noexcept { return routeOffset != 0 && (routeOffset & 1) == 0; }
     /**
      * @brief Getter.
      * @attention This method should only be called if the event was routed (see isRouted()).
@@ -2229,9 +2156,10 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
      * @throw UndersizedException The number of Event sub-classes specialized at runtime exceeds the limit (4096).
      * @throw std::bad_alloc
      */
-    template <class _Event> inline static EventId getClassId()
+    template <class _Event>
+    inline static EventId getClassId()
     {
-        static RetainedEventId retainedEventId(_Event::nameToOStream, _Event::contentToOStream, _Event::isE2ECapable);
+        static RetainedEventId retainedEventId(Event::nameToOStream, _Event::contentToOStream, _Event::isE2ECapable);
         return retainedEventId.eventId;
     }
     /**
@@ -2299,21 +2227,29 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
      */
     inline static const char *newCString(const AllocatorBase &allocator, const Actor::ostringstream_type &s);
 
-  protected:
+protected:
+
     /**
      * @brief Default constructor.
      */
-    inline Event() noexcept : EventBase(0, 0, 0, 0) { assert(sourceActorId.getNodeActorId() != 0); }
+    inline Event() noexcept
+        : EventBase(0, 0, 0, 0)
+    {
+        assert(sourceActorId.getNodeActorId() != 0);
+    }
     /**
      * @brief Destructor.
      */
     inline ~Event() noexcept {}
 
-  private:
+private:
+
     friend class AsyncNodesHandle;
     friend class AsyncExceptionHandler;
     friend class EngineToEngineConnector;
     friend class EngineToEngineConnectorEventFactory;
+    friend e2econnector::DicoTimer;
+    
     friend std::ostream &operator<<(std::ostream &, const Actor::Event::OStreamName &);
     friend std::ostream &operator<<(std::ostream &, const Actor::Event::OStreamContent &);
 
@@ -2335,6 +2271,7 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
         }
         inline ~RetainedEventId() noexcept { releaseEventId(eventId); }
     };
+    
     struct Chain : ForwardChain<0u, Chain>
     {
         inline static Event *getItem(MultiForwardChainLink<Event> *link) noexcept { return static_cast<Event *>(link); }
@@ -2356,6 +2293,9 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
                                  EventIsE2ECapableFunction); // throw (std::bad_alloc)
     static void releaseEventId(EventId) noexcept;
     static std::pair<bool, EventId> findEventId(const char *) noexcept;
+public:
+    static AbsoluteEventVector getAbsoluteEventDictionary(void);
+private:
     static bool isE2ECapable(EventId, const char *&, EventE2ESerializeFunction &, EventE2EDeserializeFunction &);
     static bool isE2ECapable(const char *, EventId &, EventE2ESerializeFunction &, EventE2EDeserializeFunction &);
     static void toOStream(std::ostream &, const OStreamName &);
@@ -2365,7 +2305,7 @@ class Actor::Event : private MultiForwardChainLink<Event>, virtual private Event
 
 /**
  * @brief Used to track event commit.
- * Using an instance of this class, it is possible to now
+ * Using an instance of this class, it is possible to know
  * if a previously pushed event can still be amended using
  * its reference returned by:
  * - Event::Pipe::push()
@@ -2766,6 +2706,7 @@ class Actor::Event::Pipe
         EventChain *destinationEventChain;
         _Event *ret = newEvent<_Event>(destinationEventChain);
         destinationEventChain->push_back(ret);
+        ENTERPRISE_0X5019(sourceActor.getAsyncNode(), ret, &sourceActor, this);
         return *ret;
     }
     /**
@@ -2789,6 +2730,7 @@ class Actor::Event::Pipe
 		EventChain* destinationEventChain;
 		_Event* ret = newEvent<_Event>(destinationEventChain, args...);
 		destinationEventChain->push_back(ret);
+        ENTERPRISE_0X5020(sourceActor.getAsyncNode(), ret, &sourceActor, this);
 		return *ret;
 	}
 
@@ -2797,6 +2739,8 @@ class Actor::Event::Pipe
 		EventChain* destinationEventChain;
 		_Event* ret = newEvent<_Event>(destinationEventChain, eventInit);
 		destinationEventChain->push_back(ret);
+        ENTERPRISE_0X5021(sourceActor.getAsyncNode(), ret, &sourceActor, this);
+
 		return *ret;
 	}
     /**
@@ -2835,14 +2779,23 @@ class Actor::Event::Pipe
     friend class EngineToEngineConnectorEventFactory;
     typedef Event::Chain EventChain;
 
-	template<class _Event> struct EventWrapper: virtual private EventBase, _Event {
-		inline EventWrapper(const Pipe& eventPipe, route_offset_type routeOffset) :
-		EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId, routeOffset) {
-		}
-		template<class... Args> inline EventWrapper(const Pipe& eventPipe, route_offset_type routeOffset, Args&&... args) :
-				EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId, routeOffset), _Event(args...) {
-		}
-	};
+        template<class _Event>
+        struct EventWrapper: virtual private EventBase, _Event
+        {
+            inline
+            EventWrapper(const Pipe& eventPipe, route_offset_type routeOffset)
+                : EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId, routeOffset)
+            {
+            }
+	
+            template<class... Args>
+            inline
+            EventWrapper(const Pipe& eventPipe, route_offset_type routeOffset, Args&&... args)
+                : EventBase(Event::getClassId<_Event>(), eventPipe.sourceActor.getActorId(), eventPipe.destinationActorId, routeOffset), _Event(args...)
+            {
+            }
+        };
+    
     struct EventFactory : AllocatorBase::Factory
     {
         typedef void *(Pipe::*NewFn)(size_t, EventChain *&, uintptr_t, Event::route_offset_type &);
@@ -3016,6 +2969,7 @@ class Actor::Event::BufferedPipe : public Actor::Event::Pipe
         _Event *ret = newEvent<_Event>(destinationEventChain);
         assert(oldDestinationEventChain == 0 || oldDestinationEventChain == destinationEventChain);
         eventChain.push_back(ret);
+        ENTERPRISE_0X5022(sourceActor.getAsyncNode(), ret, &sourceActor, this);
         return *ret;
     }
     /**
@@ -3049,6 +3003,7 @@ class Actor::Event::BufferedPipe : public Actor::Event::Pipe
         _Event *ret = newEvent<_Event>(destinationEventChain, eventInit);
         assert(oldDestinationEventChain == 0 || oldDestinationEventChain == destinationEventChain);
         eventChain.push_back(ret);
+        ENTERPRISE_0X5023(sourceActor.getAsyncNode(), ret, &sourceActor, this);
         return *ret;
     }
     /**
@@ -3138,12 +3093,14 @@ template <class _Callback> void Actor::registerPerformanceNeutralCallback(_Callb
     registerPerformanceNeutralCallback(StaticCallbackHandler<_Callback>::onCallback, callback);
 }
 
-template <class _Event, class _EventHandler> void Actor::registerEventHandler(_EventHandler &eventHandler)
+template <class _Event, class _EventHandler>
+void Actor::registerEventHandler(_EventHandler &eventHandler)
 {
     if (isRegisteredEventHandler<_Event>())
     {
         throw AlreadyRegisterdEventHandlerException();
     }
+    ENTERPRISE_0X5024(static_cast<Actor*>(this), Event::getClassId<_Event>(), &eventHandler, StaticEventHandler<_Event, _EventHandler>::onEvent);
     registerHighPriorityEventHandler(Event::getClassId<_Event>(), &eventHandler,
                                      StaticEventHandler<_Event, _EventHandler>::onEvent);
 }
@@ -3189,7 +3146,9 @@ Actor::ActorReference<_Actor> Actor::referenceLocalActor(const ActorId &pactorId
 
 template <class _Actor> Actor::ActorReference<_Actor> Actor::newReferencedActor()
 {
+    ENTERPRISE_0X5025(asyncNode, this);
     _Actor &actor = newActor<_Actor>(*asyncNode);
+    ENTERPRISE_0X5026(asyncNode, this, static_cast<Actor*>(&actor));
     
     TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
     
@@ -3207,7 +3166,9 @@ template <class _Actor> Actor::ActorReference<_Actor> Actor::newReferencedActor(
 template <class _Actor, class _ActorInit>
 Actor::ActorReference<_Actor> Actor::newReferencedActor(const _ActorInit &init)
 {
+    ENTERPRISE_0X5027(asyncNode, this);
     _Actor &actor = newActor<_Actor>(*asyncNode, init);
+    ENTERPRISE_0X5028(asyncNode, this, static_cast<Actor*>(&actor));
 
     TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
     
@@ -3251,7 +3212,9 @@ template <class _Actor> Actor::ActorReference<_Actor> Actor::newReferencedSingle
 template<class _Actor>
 const Actor::ActorId& Actor::newUnreferencedActor()
 {
+    ENTERPRISE_0X5029(asyncNode, this);
 	_Actor& actor = newActor<_Actor>(*asyncNode);
+    ENTERPRISE_0X502A(asyncNode, this, static_cast<Actor*>(&actor));
 
     TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
     
@@ -3288,7 +3251,9 @@ Actor::ActorReference<_Actor> Actor::newReferencedSingletonActor(const _ActorIni
 template<class _Actor, class _ActorInit>
 const Actor::ActorId& Actor::newUnreferencedActor(const _ActorInit& init)
 {
+    ENTERPRISE_0X501A(asyncNode, this);
 	_Actor& actor = newActor<_Actor>(*asyncNode, init);
+    ENTERPRISE_0X501B(asyncNode, this, static_cast<Actor*>(&actor));
 
     TraceREF(getAsyncNode(), __func__, actorId, cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
     

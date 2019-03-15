@@ -1,7 +1,7 @@
 /**
  * @file engine.h
  * @brief Simplx engine class
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -12,25 +12,11 @@
 
 #include "trz/engine/actor.h"
 #include "trz/engine/engineversion.h"
-#include "trz/engine/internal/e2econnector.h"
 #include "trz/engine/internal/property.h"
+#include "trz/engine/internal/service.h"
 
-extern "C" {
-/**
- * @brief Check if the linked Tredzone library type (debug/release) is compatible with the user's binary
- * @param isNDEBUG is true if the user's library is in debug mode, false otherwise
- * @return true if the library is compatible.
- */
-bool TREDZONE_SDK_IS_DEBUG_RELEASE_COMPATIBLE(bool isNDEBUG);
-/**
- * @brief Check if the linked Tredzone library is compiler compatible with the user's binary
- * This compared compiler major and minor version.
- * eg: g++ 4.9: major if 4 and minor is 9
- * @param compilerId Tredzone library's version
- * @param compilerVersion current compiler version
- * @return true if the library is compiler compatible.
- */
-bool TREDZONE_SDK_IS_COMPILER_COMPATIBLE(int compilerId, const void *compilerVersion);
+extern "C"
+{
 
 #ifdef TREDZONE_COMPILER_ID
     #error TREDZONE_COMPILER_ID macro already defined
@@ -55,7 +41,8 @@ bool TREDZONE_SDK_IS_COMPILER_COMPATIBLE(int compilerId, const void *compilerVer
     #error C++ compiler not supported!
 #endif
 #pragma pack(pop)
-}
+
+} // extern "C"
 
 namespace tredzone
 {
@@ -75,24 +62,30 @@ class EngineToEngineConnector;
  */
 class AsyncExceptionHandler
 {
-  public:
-    /** Destructor */
-    virtual ~AsyncExceptionHandler() {}
-    void onEventExceptionSynchronized(Actor *, const std::type_info &asyncActorTypeInfo,
-                                      const char *onXXX_FunctionName, const Actor::Event &,
-                                      const char *whatException) noexcept;
-    void onUnreachableExceptionSynchronized(Actor &, const std::type_info &asyncActorTypeInfo,
-                                            const Actor::ActorId::RouteIdComparable &,
-                                            const char *whatException) noexcept;
-    virtual void onEventException(Actor *, const std::type_info &asyncActorTypeInfo,
-                                  const char *onXXX_FunctionName, const Actor::Event &,
-                                  const char *whatException) noexcept;
-    virtual void onUnreachableException(Actor &, const std::type_info &asyncActorTypeInfo,
-                                        const Actor::ActorId::RouteIdComparable &,
-                                        const char *whatException) noexcept;
+public:    
+    
+    virtual ~AsyncExceptionHandler() = default;
+    
+    virtual void onEventException(Actor *, const std::type_info &asyncActorTypeInfo, const char *onXXX_FunctionName, const Actor::Event &, const char *whatException) noexcept;
+    virtual void onUnreachableException(Actor &, const std::type_info &asyncActorTypeInfo, const Actor::ActorId::RouteIdComparable &, const char *whatException) noexcept;
+    
+    // wrappers to lock mutex & redirect to above
+    void onEventExceptionSynchronous(Actor *asyncActor, const std::type_info &asyncActorTypeInfo, const char *onXXX_FunctionName, const Actor::Event &event, const char *whatException) noexcept
+    {
+        Mutex::Lock lock(m_Mutex);
+    
+        onEventException(asyncActor, asyncActorTypeInfo, onXXX_FunctionName, event, whatException);
+    }
+    void onUnreachableExceptionSynchrononous(Actor &asyncActor, const std::type_info &asyncActorTypeInfo, const Actor::ActorId::RouteIdComparable &routeIdComparable, const char *whatException) noexcept
+    {
+        Mutex::Lock lock(m_Mutex);
+    
+        onUnreachableException(asyncActor, asyncActorTypeInfo, routeIdComparable, whatException);
+    }
 
-  private:
-    Mutex mutex;
+private:
+
+    Mutex   m_Mutex;
 };
 
 /**
@@ -100,7 +93,7 @@ class AsyncExceptionHandler
  */
 class EngineEventLoop
 {
-  public:
+public:
     /** @brief Default constructor */
     EngineEventLoop() noexcept;
     /** @brief Default destructor */
@@ -297,16 +290,10 @@ class EngineCustomCoreActorFactory
 
   protected:
     /**
-     * @brief DefaultCoreActor calls threadYield() on every callback
+     * @brief DefaultCoreActor
      */
-    struct DefaultCoreActor : Actor, Actor::Callback
+    struct DefaultCoreActor : Actor
     {
-        inline DefaultCoreActor() { registerPerformanceNeutralCallback(*this); }
-        inline void onCallback() noexcept
-        {
-            registerPerformanceNeutralCallback(*this);
-            threadYield();
-        }
     };
 };
 
@@ -323,8 +310,8 @@ public:
  */
 class Engine: public virtual IEngine
 {
-  public:
-    static const int SDK_ARCHITECTURE = 1;                                      /**< Hardware specific identifier */
+public:
+    
     static const int SDK_COMPATIBILITY_VERSION = TREDZONE_ENGINE_VERSION_MINOR; /**< SDK minor version */
     static const int SDK_PATCH_VERSION = TREDZONE_ENGINE_VERSION_PATCH;         /**< SDK patch version */
     static const int DEFAULT_EVENT_ALLOCATOR_PAGE_SIZE = 64 * 1024; /**< Default event allocator page size */
@@ -571,7 +558,7 @@ class Engine: public virtual IEngine
          * the service-index. However the actor will still be part of the service-workflow.
          * Multiple actors can be declared as service using this service-tag.
          */
-        struct AnonymousService : Service
+        struct AnonymousService : public Service
         {
         };
 
@@ -582,7 +569,7 @@ class Engine: public virtual IEngine
          * version.
          * @throws std::bad_alloc
          */
-        StartSequence(const CoreSet & = FullCoreSet(), int = (checkRuntimeCompatibility(true), 0));
+        StartSequence(const CoreSet & = FullCoreSet(), int = (0));
         /** @brief Destructor */
         ~StartSequence() noexcept;
         /**
@@ -819,6 +806,10 @@ class Engine: public virtual IEngine
         const CoreSet coreSet;
         std::unique_ptr<AsyncNodeAllocator> asyncNodeAllocator;
         StarterChain starterChain;
+
+        ENTERPRISE_0X5031
+        
+
         RedZoneCoreIdList redZoneCoreIdList;
         ThreadRealTimeParam redZoneParam;
         AsyncExceptionHandler *asyncExceptionHandler;
@@ -846,36 +837,6 @@ class Engine: public virtual IEngine
      */
     ~Engine() noexcept;
 
-    /**
-     * @brief Check if the linked Tredzone library is compatible
-     * This checks debug/release, compiler version and engine version
-     *
-     * @param checkCompiler default is true to check compiler version
-     * @throws RuntimeCompatibilityException if the linked library is not compatible
-     */
-    inline static void checkRuntimeCompatibility(bool checkCompiler = true)
-    {
-#ifndef NDEBUG
-        bool isNDEBUG = false;
-#else
-        bool isNDEBUG = true;
-#endif
-
-        // check compiler version compatibility
-        if (checkCompiler)
-        {
-            TREDZONE_SDK_COMPILER_VERSION_type compilerVersion;
-            if (!TREDZONE_SDK_IS_COMPILER_COMPATIBLE(TREDZONE_COMPILER_ID, &compilerVersion))
-            {
-                throw RuntimeCompatibilityException(RuntimeCompatibilityException::E_COMPILER_VERSION);
-            }
-        }
-        // check sdk target (debug/release) compatibility
-        if (!TREDZONE_SDK_IS_DEBUG_RELEASE_COMPATIBLE(isNDEBUG))
-        {
-            throw RuntimeCompatibilityException(RuntimeCompatibilityException::E_DEBUG_RELEASE);
-        }
-    }
     /**
      * @brief Get a string representing the Engine's version.
      * This includes:
@@ -1135,7 +1096,9 @@ template <class _Actor> Actor::ActorId Engine::newCore(CoreId coreId, bool isRed
     {
 		virtual Actor::ActorId start(AsyncNode& node)
         {
+            ENTERPRISE_0X5000(&node, static_cast<Actor*>(nullptr));
             _Actor& actor = Actor::newActor<_Actor>(node);
+            ENTERPRISE_0X5001(&node, static_cast<Actor*>(nullptr), static_cast<Actor*>(&actor));
 
             TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
 
@@ -1155,7 +1118,9 @@ Actor::ActorId Engine::newCore(CoreId coreId, bool isRedZone, const _ActorInit &
         inline NewActorCoreStarter(const _ActorInit &pactorInit) noexcept : actorInit(pactorInit) {}
         virtual Actor::ActorId start(AsyncNode &node)
         {
+            ENTERPRISE_0X5002(&node, static_cast<Actor*>(nullptr));
 			_Actor& actor = Actor::newActor<_Actor>(node, actorInit);
+            ENTERPRISE_0X5003(&node, static_cast<Actor*>(nullptr), static_cast<Actor*>(&actor));
             
             TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
             
@@ -1174,7 +1139,9 @@ template <class _Actor> void Engine::StartSequence::addActor(CoreId coreId)
         virtual ~AddActorStarter() noexcept {}
         virtual Actor::ActorId onStart(Engine &, AsyncNode &node, const Actor::ActorId &, bool) const
         {
+            ENTERPRISE_0X5004(&node, static_cast<Actor*>(nullptr));
 			_Actor  &actor = Actor::newActor<_Actor>(node);
+            ENTERPRISE_0X5005(&node, static_cast<Actor*>(nullptr), static_cast<Actor*>(&actor));
             (void)actor;
             
             TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
@@ -1198,7 +1165,9 @@ void Engine::StartSequence::addActor(CoreId coreId, const _ActorInit &actorInit)
         
         virtual Actor::ActorId onStart(Engine&, AsyncNode& node, const Actor::ActorId&, bool) const
         {
+            ENTERPRISE_0X5006(&node, static_cast<Actor*>(nullptr));
             _Actor  &actor = Actor::newActor<_Actor, _ActorInit>(node, this->actorInit);
+            ENTERPRISE_0X5007(&node, static_cast<Actor*>(nullptr), static_cast<Actor*>(&actor));
             (void)actor;
             
             TraceREF(&node, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
@@ -1228,10 +1197,12 @@ void Engine::StartSequence::addServiceActor(CoreId coreId, const _ActorInit &act
                                             const Actor::ActorId &previousServiceDestroyActorId,
                                             bool isLastService) const
         {
+            ENTERPRISE_0X5008(&asyncNode, static_cast<Actor*>(nullptr));
             ServiceActorWrapper<_Actor, _ActorInit> &serviceActor = *new (
                 Actor::Allocator<ServiceActorWrapper<_Actor, _ActorInit>>(Actor::AllocatorBase(asyncNode))
                     .allocate(1)) ServiceActorWrapper<_Actor, _ActorInit>(asyncNode, this->actorInit,
                                                                           previousServiceDestroyActorId, isLastService);
+            ENTERPRISE_0X5009(&asyncNode, static_cast<Actor*>(nullptr), static_cast<Actor*>(&serviceActor));                                  
             if (EngineStartSequenceServiceTraits<_Service>::isAnonymous() == false)
             {
                 assert(engine.serviceIndex.getServiceActorId<_Service>() == tredzone::null);

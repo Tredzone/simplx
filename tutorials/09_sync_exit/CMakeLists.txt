@@ -1,16 +1,16 @@
 # single tuto
-cmake_minimum_required(VERSION 3.0)
-set (TARGET_NAME sync_exit)
+cmake_minimum_required(VERSION 3.7.2)
+set (TARGET_NAME sync_exit.bin)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall --std=c++11 -pthread")
+include("../../common_simplx.cmake")
 
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
-elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-endif()
+trz_set_cxx_flags()
 
-set(SOURCE_FILES sync_exit.cpp)
+set(SOURCE_FILES    ${CMAKE_CURRENT_SOURCE_DIR}/sync_exit.cpp
+            
+                )
+
+trz_add_topdir(src/engine)
 
 add_executable(${TARGET_NAME} ${SOURCE_FILES})
 

@@ -1,7 +1,7 @@
 /**
  * @file actor.cpp
  * @brief actor class
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -36,41 +36,43 @@ Actor::EventId Actor::Event::retainEventId(EventToOStreamFunction peventNameToOS
         throw UndersizedException(UndersizedException::EVENT_ID);
     }
 
-    EventE2ESerializeFunction eventE2ESerializeFunction;
+    EventE2ESerializeFunction   eventE2ESerializeFunction;
     EventE2EDeserializeFunction eventE2EDeserializeFunction;
-    const char *eventE2EAbsoluteId;
+    const char                  *eventE2EAbsoluteId;
+    
     if (peventIsE2ECapableFunction(eventE2EAbsoluteId, eventE2ESerializeFunction, eventE2EDeserializeFunction))
     {
-        AsyncNodeBase::s_StaticShared.absoluteEventIds.addEventId(eventId, eventE2EAbsoluteId);
+        AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.addEventId(eventId, eventE2EAbsoluteId);
     }
 
     AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId] = true;
-    AsyncNodeBase::s_StaticShared.eventToStreamFunctions[eventId].eventNameToOStreamFunction =
-        peventNameToOStreamFunction;
-    AsyncNodeBase::s_StaticShared.eventToStreamFunctions[eventId].eventContentToOStreamFunction =
-        peventContentToOStreamFunction;
+    AsyncNodeBase::s_StaticShared.eventToStreamFunctions[eventId].eventNameToOStreamFunction = peventNameToOStreamFunction;
+    AsyncNodeBase::s_StaticShared.eventToStreamFunctions[eventId].eventContentToOStreamFunction = peventContentToOStreamFunction;
     AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId] = peventIsE2ECapableFunction;
+    
     return eventId;
 }
+
 /*
-    absoluteEventIds map is shared among all nodes of an engine
+    m_AbsoluteEventIds maps are shared among all nodes of an engine
     integer event Ids may be recycled?
 */
 
 void Actor::Event::releaseEventId(EventId eventId) noexcept
 {
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
+    
     assert(eventId < AsyncNodeBase::s_StaticShared.eventIdBitSet.size());
     assert(AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId]);
 
-    EventE2ESerializeFunction eventE2ESerializeFunction;
+    EventE2ESerializeFunction   eventE2ESerializeFunction;
     EventE2EDeserializeFunction eventE2EDeserializeFunction;
-    const char *eventE2EAbsoluteId;
-    if (AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](eventE2EAbsoluteId, eventE2ESerializeFunction,
-                                                                       eventE2EDeserializeFunction))
+    const char                  *eventE2EAbsoluteId;
+    
+    if (AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](eventE2EAbsoluteId, eventE2ESerializeFunction, eventE2EDeserializeFunction))
     {
-        assert(AsyncNodeBase::s_StaticShared.absoluteEventIds.findEventId(eventE2EAbsoluteId).second == eventId);
-        AsyncNodeBase::s_StaticShared.absoluteEventIds.removeEventId(eventId);
+        assert(AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.findEventId(eventE2EAbsoluteId).second == eventId);
+        AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.removeEventId(eventId);
     }
 
     AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId] = false;
@@ -79,10 +81,23 @@ void Actor::Event::releaseEventId(EventId eventId) noexcept
     AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId] = 0;
 }
 
-std::pair<bool, Actor::EventId> Actor::Event::findEventId(const char *absoluteEventId) noexcept
+// static
+pair<bool, Actor::EventId> Actor::Event::findEventId(const char *absoluteEventId) noexcept
+{
+    // mutex cause is STATIC [PL]
+    Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
+    
+    return AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.findEventId(absoluteEventId);
+}
+
+//---- Dump Absolute Event ID map (forwarder) ----------------------------------
+
+// static
+AbsoluteEventVector    Actor::Event::getAbsoluteEventDictionary(void)
 {
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
-    return AsyncNodeBase::s_StaticShared.absoluteEventIds.findEventId(absoluteEventId);
+    
+    return AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.getAbsoluteEventDictionary();
 }
 
 bool Actor::Event::isE2ECapable(EventId eventId, const char *&absoluteEventId,
@@ -93,8 +108,7 @@ bool Actor::Event::isE2ECapable(EventId eventId, const char *&absoluteEventId,
     if (AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId])
     {
         assert(AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId] != 0);
-        return AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](absoluteEventId, serializeFn,
-                                                                              deserializeFn);
+        return AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](absoluteEventId, serializeFn, deserializeFn);
     }
     else
     {
@@ -106,13 +120,14 @@ bool Actor::Event::isE2ECapable(const char *absoluteEventId, EventId &eventId,
                                      EventE2ESerializeFunction &serializeFn, EventE2EDeserializeFunction &deserializeFn)
 {
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
-    std::pair<bool, EventId> retFindEventId = AsyncNodeBase::s_StaticShared.absoluteEventIds.findEventId(absoluteEventId);
+    
+    pair<bool, EventId> retFindEventId = AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.findEventId(absoluteEventId);
+    
     assert(retFindEventId.first == false || retFindEventId.second < AsyncNodeBase::s_StaticShared.eventIdBitSet.size());
     if (retFindEventId.first && AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId = retFindEventId.second])
     {
         assert(AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId] != 0);
-        return AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](absoluteEventId, serializeFn,
-                                                                              deserializeFn);
+        return AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](absoluteEventId, serializeFn, deserializeFn);
     }
     else
     {
@@ -161,11 +176,11 @@ Actor::CoreId Actor::ActorId::getCore() const
 
     Actor::Actor()
         : ActorBase(), eventTable((assert(asyncNode != 0), asyncNode->retainEventTable(*this))),
-          singletonActorIndex(AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE),
-          actorId(asyncNode->id, eventTable.nodeActorId, &eventTable), chain(0), onUnreachableChain(0),
-          m_ReferenceFromCount(0), m_DestroyRequestedFlag(false), onUnreferencedDestroyFlag(false), processOutPipeCount(0)
+        singletonActorIndex(AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE),
+        actorId(asyncNode->id, eventTable.nodeActorId, &eventTable), chain(0), onUnreachableChain(0),
+        m_ReferenceFromCount(0), m_DestroyRequestedFlag(false), onUnreferencedDestroyFlag(false), processOutPipeCount(0)
     #ifndef NDEBUG
-          , debugPipeCount(0)
+        , debugPipeCount(0)
     #endif
 {
     (chain = &asyncNode->asyncActorChain)->push_back(this);
@@ -289,6 +304,9 @@ Actor::CoreId Actor::getCore() const noexcept
 Engine &Actor::getEngine() noexcept { return Engine::getEngine(); }
 
 const Engine &Actor::getEngine() const noexcept { return Engine::getEngine(); }
+
+template<class _ServiceTag>
+const Actor::ActorId& Actor::getServiceActorId() const noexcept { return Engine::getEngine().getServiceIndex().getServiceActorId<_ServiceTag>; }
 
 Actor::AllocatorBase Actor::getAllocator() const noexcept { return AllocatorBase(asyncNode->nodeAllocator); }
 
@@ -627,6 +645,7 @@ void Actor::setSingletonActor(SingletonActorIndex singletonActorIndex, Actor &ac
     singletonActorIndexEntry.asyncActor = &actor;
     singletonActorIndexEntry.reservedFlag = false;
     asyncNode->singletonActorIndexChain.push_back(&singletonActorIndexEntry);
+    ENTERPRISE_0X5014(asyncNode, &actor);
 }
 
 void Actor::unsetSingletonActor(SingletonActorIndex singletonActorIndex) noexcept
@@ -668,6 +687,8 @@ void Actor::registerCallback(void (*ponCallback)(Callback &) noexcept, Callback 
     pcallback.actorEventTable = &eventTable;
     pcallback.nodeActorId = eventTable.nodeActorId;
     pcallback.onCallback = ponCallback;
+    ENTERPRISE_0X5015(pcallback.actorEventTable->asyncActor->getAsyncNode(), &pcallback, pcallback.actorEventTable->asyncActor);
+    
 }
 
 void Actor::registerPerformanceNeutralCallback(void (*ponCallback)(Callback &) noexcept,
@@ -678,6 +699,7 @@ void Actor::registerPerformanceNeutralCallback(void (*ponCallback)(Callback &) n
     pcallback.actorEventTable = &eventTable;
     pcallback.nodeActorId = eventTable.nodeActorId;
     pcallback.onCallback = ponCallback;
+    ENTERPRISE_0X5016(pcallback.actorEventTable->asyncActor->getAsyncNode(), &pcallback, pcallback.actorEventTable->asyncActor);
 }
 
 Actor::AllocatorBase::AllocatorBase(AsyncNode &asyncNode) noexcept : asyncNodeAllocator(&asyncNode.nodeAllocator)
@@ -752,11 +774,12 @@ Actor::Event::Pipe::EventFactory Actor::Event::Pipe::getEventFactory() noexcept
     else if (destinationActorId.getRouteId().getNodeId() == sourceActor.getActorId().nodeId &&
              destinationActorId.getRouteId().nodeConnection->isEngineToEngineSharedMemoryConnectorFlag)
     {
+        // shared memory
         return EventFactory(this, &Pipe::newOutOfProcessSharedMemoryEvent, &allocateOutOfProcessSharedMemoryEvent,
                             &allocateOutOfProcessSharedMemoryEvent, &batchOutOfProcessSharedMemoryEvent);
     }
     else
-    {
+    {   // e2e?
         return EventFactory(
             &asyncNode.getReferenceToWriterShared(destinationActorId.getRouteId().getNodeId()).writeCache,
             &Pipe::newOutOfProcessEvent, &allocateInProcessEvent, &allocateInProcessEvent, &batchInProcessEvent);

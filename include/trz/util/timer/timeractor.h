@@ -1,7 +1,7 @@
 /**
  * @file timeractor.h
  * @brief Simplx timer actor
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -76,7 +76,8 @@ private:
 		inline EventHandler(TimerActor& ptimerActor) noexcept :
 				timerActor(ptimerActor)
         {
-			for(int i = 0; i < MAX_NODE_COUNT; ++i) {
+			for(int i = 0; i < MAX_NODE_COUNT; ++i)
+            {
 				client[i].timerActor = &timerActor;
 			}
 		}
@@ -88,6 +89,8 @@ private:
 
 	virtual void onCallback() noexcept; // override to use testing custom utc time, by enclosing call to protected onCallback(custom utc time).
 };
+
+using TimerService = TimerActor;
 
 } // namespace
 

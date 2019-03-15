@@ -1,7 +1,7 @@
 /**
  * @file initializer.h
  * @brief engine start sequence
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -31,7 +31,7 @@ template <class _InitData> class InitializerStartSequence : public Engine::Start
     template <class _Init>
     InitializerStartSequence(const _Init &, const Engine::CoreSet & = Engine::FullCoreSet(),
                                   InitializerExceptionHandler * = 0,
-                                  int = (Engine::checkRuntimeCompatibility(true), 0));
+                                  int = (0));
 
 #ifndef NDEBUG
     static sig_atomic_t debugGetCoreInitializerSingletonCount() { return debugCoreInitializerSingletonCount(0); }

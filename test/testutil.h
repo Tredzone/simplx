@@ -1,7 +1,7 @@
 /**
  * @file testutil.h
  * @brief common test utilities header
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
  
@@ -26,7 +26,8 @@
 static const char CHAIN_TEST_PREFIX = '+';
 
 inline
-std::string errorToString(const char*fileName, int sourceFileLine) {
+std::string errorToString(const char*fileName, int sourceFileLine)
+{
 	std::stringstream s;
 	s << fileName << ':' << sourceFileLine << std::ends;
 	return s.str();
@@ -134,47 +135,61 @@ template<class T, class _Memory> inline bool operator!=(const TestAllocator<T, _
 	return left.getMemory() != right.getMemory();
 }
 
-struct TestMemory {
-	size_t inUse;
-	size_t badAlloc;
-	TestMemory() : inUse(0), badAlloc(std::numeric_limits<size_t>::max()) {
+struct TestMemory
+{
+	TestMemory()
+        : inUse(0), badAlloc(std::numeric_limits<size_t>::max())
+    {
 	}
-	~TestMemory() {
+	~TestMemory()
+    {
 		EXPECT_EQ(0u, inUse);
 	}
-	void* acquire(size_t sz) {
+	void* acquire(size_t sz)
+    {
 		if (badAlloc <= inUse + sz) {
 			throw std::bad_alloc();
 		}
 		inUse += sz;
 		return malloc(sz);
 	}
-	void release(size_t sz, void* p) {
+	void release(size_t sz, void* p)
+    {
 		inUse -= sz;
 		free(p);
 	}
+    
+    size_t inUse;
+	size_t badAlloc;
 };
 
-class WaitCondition {
+class WaitCondition
+{
 public:
-	WaitCondition() : signal(mutex), flag(false) {
+	WaitCondition()
+        : signal(mutex), flag(false)
+    {
 	}
-	~WaitCondition() {
+	~WaitCondition()
+    {
 		tredzone::Mutex::Lock lock(mutex);
 	}
-	void wait() {
+	void wait()
+    {
 		tredzone::Mutex::Lock lock(mutex);
 		while (flag == false) {
 			signal.wait();
 		}
 	}
-	void notify() {
+	void notify()
+    {
 		tredzone::Mutex::Lock lock(mutex);
 		ASSERT_FALSE(flag);
 		flag = true;
 		signal.notify();
 	}
-	void reset() {
+	void reset()
+    {
 		flag = false;
 	}
 
@@ -184,26 +199,30 @@ private:
 	bool flag;
 };
 
-namespace tredzone {
+namespace tredzone
+{
 
-    using Actor = Actor;
-    
-class TestAsyncExceptionHandler: public AsyncExceptionHandler {
+class TestAsyncExceptionHandler: public AsyncExceptionHandler
+{
 protected:
-	virtual void onEventException(Actor*,
+
+	void onEventException(Actor*,
 			const std::type_info& asyncActorTypeInfo,
 			const char* onXXX_FunctionName, const Actor::Event& event,
-			const char* whatException) noexcept {
+			const char* whatException) noexcept override
+    {
 		std::cout << "TestEventLoop::onEventException(), "
 				<< cppDemangledTypeInfoName(asyncActorTypeInfo) << "::"
 				<< onXXX_FunctionName << '(' << event << ") threw ("
 				<< whatException << ')' << std::endl;
 		FAIL();
 	}
-	virtual void onUnreachableException(Actor&,
+    
+	void onUnreachableException(Actor&,
 			const std::type_info& asyncActorTypeInfo,
 			const Actor::ActorId::RouteIdComparable& /*routeIdComparable*/,
-			const char* whatException) noexcept {
+			const char* whatException) noexcept override
+    {
 		std::cout << "TestEventLoop::onUnreachableException(), "
 				<< cppDemangledTypeInfoName(asyncActorTypeInfo)
 				<< "::onUnreachable(" << /*routeIdComparable*/"" << ") threw ("

@@ -1,7 +1,7 @@
 /**
  * @file macro.h
  * @brief internally-used C preprocessor macros
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -17,17 +17,11 @@
     // wasn't user-defined
     #ifndef NDEBUG
         // debug
-        #define TRZ_DEBUG_BREAK() assert(false) // break to debugger
+        #define TRZ_DEBUG_BREAK() assert(!true) // break to debugger
     #else
         // release
         #define TRZ_DEBUG_BREAK()
     #endif
-#endif
-
-#ifndef NDEBUG
-    #define TRZ_DEBUG(x) x
-#else
-    #define TRZ_DEBUG(x)
 #endif
 
 /**

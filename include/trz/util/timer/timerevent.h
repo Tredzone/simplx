@@ -1,7 +1,7 @@
 /**
  * @file timerevent.h
  * @brief Simplx timer event
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -9,44 +9,55 @@
 
 #include <ctime>
 
-#include "trz/engine/engine.h"
+#include "trz/engine/internal/service.h"
+#include "trz/engine/actor.h"
 
-namespace tredzone {
-namespace service {
+namespace tredzone
+{
 
-struct Timer : Service {
+namespace service
+{
+// import into namespace
+
+struct Timer : public Service
+{
 };
 
-}
-}
+} // namespace service
 
-namespace tredzone {
-namespace timer {
+namespace timer
+{
 
 #pragma pack(push)
 #pragma pack(1)
-struct GetEvent: Actor::Event {
+struct GetEvent : public Actor::Event
+{
 	/**
 	 * From the client, request utctime when duration is elapsed, or duration is nul.
 	 * One request at a time by source actor id.
 	 * Any new request from a source actor will overwrite any existing one from the same source.
 	 * This event is intended to be implemented by a singleton actor.
 	 */
-
-	Time duration;
-	inline GetEvent() noexcept {
+	GetEvent() noexcept
+    {
 	}
-	inline GetEvent(const Time& pduration) noexcept :
-			duration(pduration) {
+    
+	GetEvent(const Time& pduration) noexcept
+        : duration(pduration)
+    {
 	}
-	inline static void nameToOStream(std::ostream& s, const Event&) {
+    
+	static void nameToOStream(std::ostream& s, const Event&)
+    {
 		s << "tredzone::timer::GetEvent";
 	}
-	inline static void contentToOStream(std::ostream& s, const Event& event) {
-		s << "duration="
-				<< Time::Millisecond(
-						static_cast<const GetEvent&>(event).duration);
+    
+	static void contentToOStream(std::ostream& s, const Event& event)
+    {
+		s << "duration=" << Time::Millisecond( static_cast<const GetEvent&>(event).duration);
 	}
+    
+    Time duration;
 };
 
 struct TimeOutEvent: Actor::Event {

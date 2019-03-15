@@ -1,7 +1,7 @@
 /**
  * @file engine.cpp
  * @brief Simplx engine class
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -13,43 +13,9 @@ using namespace std;
 
 extern "C"
 {
-    int TREDZONE_SDK_ARCHITECTURE = tredzone::Engine::SDK_ARCHITECTURE;
     int TREDZONE_SDK_COMPATIBILITY_VERSION = tredzone::Engine::SDK_COMPATIBILITY_VERSION;
     int TREDZONE_SDK_PATCH_VERSION = tredzone::Engine::SDK_PATCH_VERSION;
     int TREDZONE_SDK_COMPILER_ID = TREDZONE_COMPILER_ID;
-}
-
-bool TREDZONE_SDK_IS_DEBUG_RELEASE_COMPATIBLE(bool isNDEBUG)
-{
-#ifndef NDEBUG
-    // debug
-    if (isNDEBUG)
-    {
-        return false;
-    }
-#else
-    // release
-    if (!isNDEBUG)
-    {
-        return false;
-    }
-#endif
-    return true;
-}
-
-bool TREDZONE_SDK_IS_COMPILER_COMPATIBLE(int compilerId, const void *compilerVersion)
-{
-    if (compilerId == TREDZONE_SDK_COMPILER_ID)
-    {
-        const TREDZONE_SDK_COMPILER_VERSION_type &gccVersion =
-            *static_cast<const TREDZONE_SDK_COMPILER_VERSION_type *>(compilerVersion);
-#if defined(__GNUG__)
-        return gccVersion.vmajor == __GNUC__ && gccVersion.vminor == __GNUC_MINOR__;
-#else
-    #error No supported C++ compiler
-#endif
-    }
-    return false;
 }
 
 namespace tredzone
@@ -494,15 +460,8 @@ std::string Engine::getVersion()
        << "COMPILER=" << (int)TREDZONE_COMPILER_ID
 #endif
        << ' ';
-    if (SDK_ARCHITECTURE == 1)
-    {
-        ss << "x86";
-    }
-    else
-    {
-        ss << "ARCHITECTURE=" << (int)SDK_ARCHITECTURE;
-    }
-    ss << ' ' << sizeof(void *) * 8 << "-bit" << std::ends;
+    
+    ss << sizeof(void *) * 8 << "-bit" << std::ends;
     return ss.str();
 }
 
@@ -551,6 +510,7 @@ struct Engine_start_NodeThread
 
 void Engine::start(const StartSequence &startSequence)
 {
+    ENTERPRISE_0X5012(this, &startSequence);
     struct NodeThreadList : std::list<Engine_start_NodeThread>
     {
         iterator find(CoreId coreId) noexcept
@@ -748,6 +708,8 @@ Engine::CoreId Engine::CoreSet::at(NodeId nodeId) const
     std::stringstream s;
     s << (uint64_t)getPID() << '-' << getTSC() << std::ends;
     engineSuffix = s.str();
+
+    ENTERPRISE_0X5013(this);
 }
 
     Engine::StartSequence::~StartSequence() noexcept

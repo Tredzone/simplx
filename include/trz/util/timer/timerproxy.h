@@ -1,12 +1,13 @@
 /**
  * @file timerproxy.h
  * @brief Simplx timer proxy
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
 #pragma once
 
+#include "trz/engine/engine.h"
 #include "trz/util/timer/timerevent.h"
 
 namespace tredzone
@@ -41,14 +42,15 @@ public:
 	/**
 	 * throw (std::bad_alloc, Actor::ShutdownException, NoServiceException)
 	 */
-	inline TimerProxy(Actor& actor, const Engine::ServiceIndex& serviceIndex) :
-			singletonActorEventHandler(actor.newReferencedSingletonActor<SingletonActorEventHandler>(
-							&serviceIndex)), repeatFlag(false), chain(0) {
+	inline TimerProxy(Actor& actor, const Engine::ServiceIndex& serviceIndex)
+        : singletonActorEventHandler(actor.newReferencedSingletonActor<SingletonActorEventHandler>( &serviceIndex)), repeatFlag(false), chain(0)
+    {
 	}
 	/**
 	 * @brief Default destructor, delete timer client request
 	 */
-	virtual ~TimerProxy() noexcept {
+	virtual ~TimerProxy() noexcept
+    {
 		unset();
 	}
 	/**
@@ -56,26 +58,30 @@ public:
      * note that a set() call erase automatically the last one
      * @param duration the waiting period before a new {@link #onTimeout(long) } callback
      */
-	inline void set(const Time& duration) noexcept {
+	inline void set(const Time& duration) noexcept
+    {
 		singletonActorEventHandler->set(*this, duration);
 	}
 	/**
 	 * @brief calls the {@link  #set(long)} method with 0 as delay
 	 */
-	inline void setNow() noexcept {
+	inline void setNow() noexcept
+    {
 		singletonActorEventHandler->set(*this, Time());
 	}
 	/**
      * the same functional as the {@link  #set(long)} method, but the {@link #onTimeout(long) } callback will be repeated until an {@link  #unset() }is done
      * @param duration the delay between successive {@link #onTimeout(long) } callback
      */
-	inline void setRepeat(const Time& duration) noexcept {
+	inline void setRepeat(const Time& duration) noexcept
+    {
 		singletonActorEventHandler->setRepeat(*this, duration);
 	}
 	/**
      * @brief reset the Timer client, delete last {@link  #set(long)} and setRepeat() calls
      */
-	inline void unset() noexcept {
+	inline void unset() noexcept
+    {
 		singletonActorEventHandler->unset(*this);
 	}
     
@@ -89,28 +95,26 @@ public:
 	 *
 	 * @return true if a set() or setRepeat() is done, false otherwise
 	 */
-	inline bool isSet() const noexcept {
+	inline bool isSet() const noexcept
+    {
 		return chain != 0;
 	}
+    
 	/**
 	 *
 	 * @param serviceIndex the engine service table
 	 * @return TimerService ActorId
 	 * @throw (NoServiceException) if the TimerService was not started
 	 */
-	inline static const Actor::ActorId& getTimerServiceActorId(const Engine::ServiceIndex& serviceIndex) {
-		const Actor::ActorId& ret = serviceIndex.getServiceActorId<
-				service::Timer>();
-		if (ret == tredzone::null) {
-			throw NoServiceException();
-		}
-		return ret;
-	}
+	static const Actor::ActorId& getTimerServiceActorId(const Engine::ServiceIndex& serviceIndex);
 
 private:
-	struct Chain: DoubleChain<0u, Chain> {
+
+	struct Chain: DoubleChain<0u, Chain>
+    {
 		inline static TimerProxy* getItem(
-				MultiDoubleChainLink<TimerProxy>* link) noexcept {
+				MultiDoubleChainLink<TimerProxy>* link) noexcept
+        {
 			return static_cast<TimerProxy*>(link);
 		}
 		inline static const TimerProxy* getItem(
@@ -127,7 +131,8 @@ private:
 		}
 	};
     
-	class SingletonActorEventHandler: public Actor {
+	class SingletonActorEventHandler: public Actor
+    {
 	public:
 		/**
 		 * throw (ShutdownException, NoServiceException)

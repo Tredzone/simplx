@@ -1,7 +1,7 @@
 /**
  * @file stringstream.h
  * @brief custom stringstream class
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 

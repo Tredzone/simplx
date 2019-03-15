@@ -1,7 +1,7 @@
 /**
  * @file platform.h
  * @brief cross-platform system wrapper
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -13,12 +13,16 @@
     // debug flags error
     #error conflicting NDEBUG & DEBUG defines
 #else
-    #if (!defined(NDEBUG))
-        #define DEBUG
+    #if (!defined(NDEBUG) || defined(DEBUG))
+        #ifndef DEBUG
+            #define DEBUG
+        #endif
         #define TREDZONE_DEBUG      1
         #define TREDZONE_RELEASE    0
     #else
-        #define RELEASE
+        #ifndef RELEASE
+            #define RELEASE
+        #endif
         #define TREDZONE_DEBUG      0
         #define TREDZONE_RELEASE    1
     #endif
@@ -30,8 +34,8 @@
  * Detect c++11 and set macro
  * cf: http://en.cppreference.com/w/cpp/preprocessor/replace
  */
-#if __cplusplus > 199711L
-    #define TREDZONE_CPP11_SUPPORT
+#if __cplusplus <= 199711L
+    #error C++11 is required
 #endif
 
 //---- Endianness --------------------------------------------------------------
@@ -41,6 +45,11 @@
     #error endianness is defined by COMPILER itself, not user-defined compiler flags
 #endif
 
+#ifndef TREDZONE_STREAM_SWAP
+    // don't swap network serializations by default
+    #define TREDZONE_STREAM_SWAP   0
+#endif 
+    
 //---- OS platform -------------------------------------------------------------
 
 #if !defined(TREDZONE_PLATFORM_LINUX) && defined(__linux__)
@@ -101,5 +110,15 @@
         #define TREDZONE_CHECK_CYCLICAL_REFS    0
     #endif
 #endif
+
+//---- Enterprise --------------------------------------------------------------
+
+#ifdef TREDZONE_E2E
+    #if (TREDZONE_E2E != 0)
+        #undef TREDZONE_E2E
+        #define TREDZONE_E2E    1
+    #endif
+#endif // TREDZONE_E2E
+
 
 // nada mas

@@ -1,7 +1,7 @@
 /**
  * @file platform_gcc.cpp
  * @brief Linux-specific OS wrapper
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -9,6 +9,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 /*
 
@@ -182,11 +186,13 @@ string tredzone::systemErrorToString(int err)
     {
         return "<internal strerror_r() error>";
     }
-    size_t sz = strlen(buffer);
+    
+    const size_t sz = strlen(buffer);
     if (sz > 0 && buffer[sz - 1] == '\n')
     {
         buffer[sz - 1] = '\0';
     }
+    
     return buffer;
 
 #else
@@ -392,3 +398,52 @@ void tredzone::tlsDestroy(tls_t key)
         throw RunTimeException(__FILE__, __LINE__);
     }
 }
+
+//---- Soft (non-spurious) String to Int conversion ---------------------------
+
+int	tredzone::Soft_stoi(const string &s, const int def)
+{
+	try
+	{	
+		if (s.empty())	return def;
+		
+		const int	v = ::stoi(s);
+		return v;
+	
+	}
+	catch (std::runtime_error &e)
+	{
+		const char	*what_s = e.what();	// (don't allocate)
+		(void)what_s;
+	}
+	
+	return def;
+}
+
+//----Get Hostname IP address --------------------------------------------------
+
+string  tredzone::GetHostnameIP(const string &name)
+{
+    addrinfo    hints, *res_p;
+    
+    ::memset(&hints, 0, sizeof(hints));
+    
+    hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+    hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+    hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
+    hints.ai_protocol = 0;          /* Any protocol */
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+    
+    const int err = ::getaddrinfo(nullptr/*node*/, name.c_str(), &hints, &res_p);
+    if (err)    return "";          // error
+    
+    const string  res((const char*)res_p->ai_addr);
+    
+    ::freeaddrinfo(res_p);
+
+    return res;
+}
+
+// nada mas

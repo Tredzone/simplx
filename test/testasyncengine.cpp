@@ -1,7 +1,7 @@
 /**
  * @file testasyncengine.cpp
  * @brief test Simplx engine
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -82,7 +82,8 @@ struct TestModule : Actor
     }
 };
 
-template <class _AsyncEngine> void testInit()
+template <class _AsyncEngine>
+void testInit()
 {
     {
         Engine::CoreSet coreSet;
@@ -96,7 +97,8 @@ template <class _AsyncEngine> void testInit()
     }
 }
 
-static void testInit()
+static
+void testInit()
 {
     testInit<Engine>();
     testInit<TestEngine>();

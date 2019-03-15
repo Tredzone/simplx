@@ -1,7 +1,7 @@
 /**
  * @file traceref_dummy.h
  * @brief Enterprise reference & lifetime tracing
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * This is a DUMMY file when not using an ENTERPRISE license.
  * Please see accompanying LICENSE file for licensing terms.
  */

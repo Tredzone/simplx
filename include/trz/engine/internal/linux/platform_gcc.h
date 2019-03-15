@@ -1,7 +1,7 @@
 /**
  * @file platform_gcc.h
  * @brief Linux-specific OS wrapper
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -44,6 +44,8 @@
 
 namespace tredzone
 {
+// import into namespace
+using std::string;
 
 typedef pthread_mutex_t mutex_t;
 typedef pthread_cond_t signal_t;
@@ -304,6 +306,10 @@ void tlsSet(tls_t key, void *value)
         throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
     }
 }
+
+int	Soft_stoi(const std::string &s, const int def = -1);
+
+string  GetHostnameIP(const string &name);
 
 } // namespace tredzone
 

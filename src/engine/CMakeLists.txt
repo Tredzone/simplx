@@ -2,29 +2,22 @@
 cmake_minimum_required(VERSION 3.0)
 set (TARGET_NAME engine)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+include_directories(${SIMPLX_DIR}/include ${SIMPLX_DIR})
 
+list(APPEND SOURCE_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/actor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/engine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/node.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/RefMapper.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/linux/platform_gcc.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/e2e_stub.cpp                # (body will be noped when e2e enabled)
+    )
 
-if ("${CMAKE_CXX_FLAGS}" STREQUAL "--std=c++")
-    # user-defined C++ version
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-else()
-    # default is c++11
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --std=c++11")
-endif()
+add_library(${TARGET_NAME} STATIC ${SOURCE_FILES})
 
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
-elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-endif()
+target_include_directories(${TARGET_NAME} INTERFACE ${SIMPLX_DIR}/include )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra  ")
-
-FILE(GLOB SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/linux/*.cpp")
-
-add_library(engine STATIC ${SOURCE_FILES})
-
-target_include_directories(${TARGET_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/../../include )
+# re-export to parent
+set(SOURCE_FILES ${SOURCE_FILES} PARENT_SCOPE)
 
 

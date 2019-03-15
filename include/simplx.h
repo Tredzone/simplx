@@ -1,9 +1,10 @@
 /**
  * @file simplx.h
  * @brief Simplx top-level bulk header
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
+
 
 #include "trz/engine/actor.h"
 #include "trz/engine/engine.h"
@@ -12,7 +13,6 @@
 #include "trz/engine/platform.h"
 
 // internal
-#include "trz/engine/internal/e2econnector.h"
 #include "trz/engine/internal/cacheline.h"
 #include "trz/engine/internal/mdoublechain.h"
 #include "trz/engine/internal/mforwardchain.h"
@@ -28,3 +28,6 @@
 #include "trz/engine/internal/dlldecorationrestore.h"
 #include "trz/engine/internal/dlldecorationsave.h"
 
+#if TREDZONE_E2E
+    #include "trz/e2e/e2e.h"
+#endif

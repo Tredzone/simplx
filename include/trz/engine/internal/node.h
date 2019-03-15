@@ -1,7 +1,7 @@
 /**
  * @file node.h
  * @brief Vertx engine graph node
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -18,6 +18,7 @@
 #include "trz/engine/internal/intrinsics.h"
 #include "trz/engine/internal/parallel.h"
 #include "trz/engine/internal/RefMapper.h"
+#include "trz/util/enterprise.h"
 
 #define CRITICAL_ASSERT(x)                                                                                             \
     if (!(x))                                                                                                          \
@@ -28,7 +29,11 @@
 
 namespace tredzone
 {
+// import into namespace
+using std::string;
 
+// forward declarations
+class EngineToEngineConnector;
 class AsyncNode;
 
 #pragma pack(push)
@@ -53,6 +58,7 @@ struct Actor::EventTable
     size_t undeliveredEventCount;
     EventTable *nextUnused;
     void *const deallocatePointer;
+    const Actor * getActor() const {return asyncActor;}
     EventTable(void *) noexcept;
     ~EventTable() noexcept;
     inline bool onEvent(const Event &event, uint64_t &) const;
@@ -65,16 +71,18 @@ struct Actor::EventTable
 #endif
 };
 
-struct Actor::NodeConnection : MultiDoubleChainLink<NodeConnection>
+// is e2e-related?
+struct Actor::NodeConnection : public MultiDoubleChainLink<NodeConnection>
 {
-    typedef void (*OnOutboundEventFn)(EngineToEngineConnector *, const Actor::Event &);
-    typedef OnOutboundEventFn OnInboundUndeliveredEventFn;
-    ActorId::RouteId::NodeConnectionId nodeConnectionId;
-    ActorId::RouteId::NodeConnectionId unreachableNodeConnectionId;
-    EngineToEngineConnector *connector;
-    OnOutboundEventFn onOutboundEventFn;
-    OnInboundUndeliveredEventFn onInboundUndeliveredEventFn;
-    bool isEngineToEngineSharedMemoryConnectorFlag;
+    using OnOutboundEventFn = void (*)(EngineToEngineConnector *, const Actor::Event &);
+    using OnInboundUndeliveredEventFn = OnOutboundEventFn;
+    
+    ActorId::RouteId::NodeConnectionId  nodeConnectionId;
+    ActorId::RouteId::NodeConnectionId  unreachableNodeConnectionId;
+    EngineToEngineConnector             *connector;
+    OnOutboundEventFn                   onOutboundEventFn;
+    OnInboundUndeliveredEventFn         onInboundUndeliveredEventFn;
+    bool                                isEngineToEngineSharedMemoryConnectorFlag;
 };
 #pragma pack(pop)
 
@@ -161,8 +169,8 @@ class AsyncNodesHandle
             uint32_t nextEventAllocatorPageIndex;
             WriteCache(size_t peventAllocatorPageSize);               // throw (std::bad_alloc)
             inline void newEventPage();                               // throw (std::bad_alloc)
-            inline void *allocateEvent(size_t);                       // throw (std::bad_alloc)
-            inline void *allocateEvent(size_t, uint32_t &, size_t &); // throw (std::bad_alloc)
+            void *allocateEvent(size_t);                       // throw (std::bad_alloc)
+            void *allocateEvent(size_t, uint32_t &, size_t &); // throw (std::bad_alloc)
         };
 
         WriteCache writeCache;
@@ -180,6 +188,7 @@ class AsyncNodesHandle
             sig_atomic_t *readerCAS;
             Shared::ReadWriteLocked *sharedReadWriteLocked;
             inline CacheLine1() noexcept : isReaderActive(0), readerCAS(0), sharedReadWriteLocked(0) {}
+            
         } cl1;
 
         char cacheLinePadding[TREDZONE_CACHE_LINE_PADDING(sizeof(CacheLine1))];
@@ -189,6 +198,7 @@ class AsyncNodesHandle
             bool isWriterActive;
             bool isWriteLocked;
             inline CacheLine2() noexcept : isWriterActive(false), isWriteLocked(false) {}
+            
         } cl2;
 
         ReaderSharedHandle() noexcept;
@@ -212,8 +222,8 @@ class AsyncNodesHandle
         }
         inline bool getIsWriteLocked() noexcept { return cl2.isWriteLocked; }
         inline void setIsWriteLocked(bool isWriteLocked) noexcept { cl2.isWriteLocked = isWriteLocked; }
-        inline void read() noexcept;
-        inline bool returnToSender(const Actor::Event &) noexcept;
+        void    read(void) noexcept;
+        bool returnToSender(const Actor::Event &) noexcept;
         static void dispatchUnreachableNodes(Actor::OnUnreachableChain &, Shared::UnreachableNodeConnectionChain &,
                                              NodeId, AsyncExceptionHandler &) noexcept;
     };
@@ -270,11 +280,11 @@ class AsyncNodesHandle
             *cl1.isWriteLocked = isWriteLocked;
         }
         inline Shared &getReferenceToShared() noexcept { return cl2.shared; }
-        inline bool write() noexcept;
+        bool write() noexcept;
         void writeFailed() noexcept;
         void writeDispatchAndClearUndeliveredEvents(EventChain &) noexcept;
-        inline bool localOnEvent(const Actor::Event &, uint64_t &) noexcept;
-        inline bool localOnOutboundEvent(const Actor::Event &) noexcept;
+        bool localOnEvent(const Actor::Event &, uint64_t &) noexcept;
+        bool localOnOutboundEvent(const Actor::Event &) noexcept;
         void onUndeliveredEvent(const Actor::Event &) noexcept;
         void onUndeliveredEventToSourceActor(const Actor::Event &) noexcept;
     };
@@ -621,58 +631,69 @@ class AsyncNodeManager : private std::unique_ptr<AsyncExceptionHandler>, public 
 
 struct AsyncNodeBase
 {
-    typedef Actor::Chain AsyncActorChain;
-    typedef Actor::OnUnreachableChain AsyncActorOnUnreachableChain;
-    typedef Actor::Callback::Chain AsyncActorCallbackChain;
-    typedef Actor::NodeConnection::DoubleChain<> NodeConnectionChain;
-    typedef void (*EventToOStreamFunction)(std::ostream &, const Actor::Event &);
-    typedef bool (*EventIsE2ECapableFunction)(const char *&, Actor::Event::EventE2ESerializeFunction &,
-                                              Actor::Event::EventE2EDeserializeFunction &);
+public:
+
+    using AsyncActorChain = Actor::Chain;
+    using AsyncActorOnUnreachableChain = Actor::OnUnreachableChain;
+    using AsyncActorCallbackChain = Actor::Callback::Chain;
+    using NodeConnectionChain = Actor::NodeConnection::DoubleChain<>;
+    
+    typedef void (*EventToOStreamFunction)(std::ostream &, const Actor::Event &);       // remove this crap [PL]
+    typedef bool (*EventIsE2ECapableFunction)(const char *&, Actor::Event::EventE2ESerializeFunction &, Actor::Event::EventE2EDeserializeFunction &);
+    
     struct StaticShared
     {
+    public:
+        
+        // remove this crap [PL]
         struct EventToStreamFunctions
         {
             EventToOStreamFunction eventNameToOStreamFunction;
             EventToOStreamFunction eventContentToOStreamFunction;
-            inline EventToStreamFunctions() noexcept : eventNameToOStreamFunction(0), eventContentToOStreamFunction(0)
+            inline EventToStreamFunctions() noexcept
+                : eventNameToOStreamFunction(0), eventContentToOStreamFunction(0)
             {
             }
         };
+        
+        // absolute event ID dictionary (used in e2e)
         class AbsoluteEventIds
         {
-          public:
+        public:
             ~AbsoluteEventIds() noexcept;
-            void addEventId(Actor::EventId,
-                            const char *); // throw(DuplicateAbsoluteEventIdException, std::bad_alloc)
+            void addEventId(Actor::EventId, const char *);
             void removeEventId(Actor::EventId) noexcept;
             std::pair<bool, Actor::EventId> findEventId(const char *) const noexcept;
+            AbsoluteEventVector    getAbsoluteEventDictionary(void) const;
 
-          private:
+        private:
+            
             struct CStringLess
             {
                 inline bool operator()(const char *x, const char *y) const noexcept { return std::strcmp(x, y) < 0; }
             };
-            typedef std::map<Actor::EventId, std::string> EventIdNameMap;
-            typedef std::map<const char *, Actor::EventId, CStringLess> EventNameIdMap;
+            
+            using EventIdNameMap = std::map<Actor::EventId, std::string>;
+            using EventNameIdMap = std::map<const char *, Actor::EventId, CStringLess>;
+            
             EventIdNameMap eventIdNameMap;
             EventNameIdMap eventNameIdMap;
 
-#ifndef NDEBUG
             void debugCheckMaps() const;
-#endif
         };
 
         static const int SINGLETON_ACTOR_INDEX_SIZE = 4096;
 
-        char cacheLineHeaderPadding[CACHE_LINE_SIZE - 1];
-        Mutex mutex;
+        char                                    cacheLineHeaderPadding[CACHE_LINE_SIZE - 1];
+        Mutex                                   mutex;
         std::bitset<SINGLETON_ACTOR_INDEX_SIZE> singletonActorIndexBitSet;
-        std::bitset<Actor::MAX_EVENT_ID_COUNT> eventIdBitSet;
-        EventToStreamFunctions eventToStreamFunctions[Actor::MAX_EVENT_ID_COUNT];
-        EventIsE2ECapableFunction eventIsE2ECapableFunction[Actor::MAX_EVENT_ID_COUNT];
-        AbsoluteEventIds absoluteEventIds;
-        char cacheLineTrailerPadding[CACHE_LINE_SIZE - 1];
+        std::bitset<Actor::MAX_EVENT_ID_COUNT>  eventIdBitSet;
+        EventToStreamFunctions                  eventToStreamFunctions[Actor::MAX_EVENT_ID_COUNT];
+        EventIsE2ECapableFunction               eventIsE2ECapableFunction[Actor::MAX_EVENT_ID_COUNT];
+        AbsoluteEventIds                        m_AbsoluteEventIds;
+        char                                    cacheLineTrailerPadding[CACHE_LINE_SIZE - 1];
     };
+    
 #pragma pack(push)
 #pragma pack(1)
     struct SingletonActorIndexEntry : MultiDoubleChainLink<SingletonActorIndexEntry>
@@ -702,11 +723,12 @@ struct AsyncNodeBase
             }
         }
 
-      protected:
+    protected:
       
         virtual void onNodeActorCountDiff(const size_t oldCount, const size_t newCount) noexcept = 0;
 
-      private:
+    private:
+    
         friend class AsyncNode;
         friend struct AsyncNodeBase;
         struct Chain : DoubleChain<0u, Chain>
@@ -770,6 +792,9 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
     typedef CoreSet::UndefinedCoreException UndefinedCoreException;
     typedef Engine::CoreInUseException CoreInUseException;
     typedef EngineCustomEventLoopFactory EventLoopFactory;
+    
+    ENTERPRISE_0X5030
+    
     class Thread
     {
       public:
@@ -845,9 +870,11 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
     template<class _Actor>
     inline _Actor& newActor()
     {
+        ENTERPRISE_0X500A(this, static_cast<Actor*>(nullptr));
         // throw (std::bad_alloc, Actor::ShutdownException, ...)
 		_Actor& actor = Actor::newActor<_Actor>(*this);
-        
+        ENTERPRISE_0X500B(this, static_cast<Actor*>(nullptr), &actor);
+
         TraceREF(this, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
         
 		return actor;
@@ -856,9 +883,11 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
     template<class _Actor, class _ActorInit>
     inline _Actor& newActor(const _ActorInit& init)
     {
+        ENTERPRISE_0X500C(this, static_cast<Actor*>(nullptr));
         // throw (std::bad_alloc, Actor::ShutdownException, ...)
         _Actor& actor = Actor::newActor<_Actor, _ActorInit>(*this, init);
-
+        ENTERPRISE_0X500D(this, static_cast<Actor*>(nullptr), static_cast<Actor*>(&actor));
+        
         TraceREF(this, __func__, "-1.-1", cppDemangledTypeInfoName(typeid(*this)), actor.actorId, cppDemangledTypeInfoName(typeid(actor)))
         
 		return actor;
@@ -916,6 +945,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
         ++corePerformanceCounters.loopTotalCount;
         corePerformanceCounters.loopUsageCount += loopUsagePerformanceCounterIncrement;
         loopUsagePerformanceCounterIncrement = 0;
+        ENTERPRISE_0X500E(this);
     }
     inline static uint8_t synchronizeAsyncActorCallbacks(AsyncActorCallbackChain &callbackChain,
                                                          uint64_t &performanceCounter) noexcept
@@ -937,6 +967,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
                 {
                     ++performanceCounter;
                     (*callback.onCallback)(callback);
+                    ENTERPRISE_0X500F((Actor*)(callback.actorEventTable->getActor()), &callback);
                 }
             }
             return 1;
@@ -950,6 +981,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
         loopUsagePerformanceCounterIncrement =
             synchronizeAsyncActorCallbacks(asyncActorCallbackChain, corePerformanceCounters.onCallbackCount);
     }
+    
     inline void synchronizeLocalEvents() noexcept
     {
         AsyncNodesHandle::WriterSharedHandle &writerSharedHandle = nodeHandle.getWriterSharedHandle(id);
@@ -961,6 +993,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
         assert(writerSharedHandle.cl2.shared.readWriteLocked.usedEventAllocatorPageChain.empty());
         assert(writerSharedHandle.cl2.shared.readWriteLocked.writerNodeId == id);
         assert(writerSharedHandle.cl2.shared.writeCache.checkUndeliveredEventsFlag == false);
+        
         if (!writerSharedHandle.cl2.shared.writeCache.toBeDeliveredEventChain.empty() ||
             !writerSharedHandle.cl2.shared.writeCache.toBeRoutedEventChain.empty() ||
             !writerSharedHandle.cl2.shared.writeCache.toBeUndeliveredRoutedEventChain.empty() ||
@@ -973,18 +1006,20 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
                     writerSharedHandle.cl2.shared.writeCache.batchIdIncrement;
                 writerSharedHandle.cl2.shared.writeCache.batchIdIncrement = 0;
             }
-            writerSharedHandle.cl2.shared.writeCache.freeEventAllocatorPageChain.push_back(
-                usedlocalEventAllocatorPageChain);
+            
+            writerSharedHandle.cl2.shared.writeCache.freeEventAllocatorPageChain.push_back(usedlocalEventAllocatorPageChain);
+            
+            // 3 events chains: toBeDelivered/toBeRouted/toBeUndeliveredRouted
             AsyncNodesHandle::EventChain toBeDeliveredEventChain;
             writerSharedHandle.cl2.shared.writeCache.toBeDeliveredEventChain.swap(toBeDeliveredEventChain);
             AsyncNodesHandle::EventChain toBeRoutedEventChain;
             writerSharedHandle.cl2.shared.writeCache.toBeRoutedEventChain.swap(toBeRoutedEventChain);
             AsyncNodesHandle::EventChain toBeUndeliveredRoutedEventChain;
-            writerSharedHandle.cl2.shared.writeCache.toBeUndeliveredRoutedEventChain.swap(
-                toBeUndeliveredRoutedEventChain);
+            writerSharedHandle.cl2.shared.writeCache.toBeUndeliveredRoutedEventChain.swap(toBeUndeliveredRoutedEventChain);
             assert(usedlocalEventAllocatorPageChain.empty());
             writerSharedHandle.cl2.shared.writeCache.usedEventAllocatorPageChain.swap(usedlocalEventAllocatorPageChain);
             writerSharedHandle.cl2.shared.writeCache.frontUsedEventAllocatorPageChainOffset = 0;
+            
             for (AsyncNodesHandle::EventChain::iterator i = toBeDeliveredEventChain.begin(),
                                                         endi = toBeDeliveredEventChain.end();
                  i != endi; ++i)
@@ -994,6 +1029,8 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
                     writerSharedHandle.onUndeliveredEvent(*i);
                 }
             }
+            
+            // is e2e? [PL]
             for (AsyncNodesHandle::EventChain::iterator i = toBeRoutedEventChain.begin(),
                                                         endi = toBeRoutedEventChain.end();
                  i != endi; ++i)
@@ -1003,12 +1040,15 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
                     writerSharedHandle.onUndeliveredEvent(*i);
                 }
             }
+            
+            // is e2e? [PL]
             for (AsyncNodesHandle::EventChain::iterator i = toBeUndeliveredRoutedEventChain.begin(),
                                                         endi = toBeUndeliveredRoutedEventChain.end();
                  i != endi; ++i)
             {
                 writerSharedHandle.onUndeliveredEventToSourceActor(*i);
             }
+            
             AsyncNodesHandle::Shared::UnreachableNodeConnectionChain unreachableNodeConnectionChain;
             unreachableNodeConnectionChain.swap(
                 writerSharedHandle.cl2.shared.writeCache.unreachableNodeConnectionChain);
@@ -1025,6 +1065,7 @@ class AsyncNode : private AsyncNodeBase, public AsyncNodeManager::Node
             }
         }
     }
+    
     inline void synchronizeDestroyAsyncActors() noexcept
     {
         if (!destroyedActorChain.empty())
@@ -1095,6 +1136,7 @@ private:
         
 };
 
+// returns [dispatched ok]
 bool Actor::EventTable::onEvent(const Event &event, uint64_t &performanceCounter) const
 {
     int i = 0;
@@ -1108,378 +1150,9 @@ bool Actor::EventTable::onEvent(const Event &event, uint64_t &performanceCounter
     }
     ++performanceCounter;
     assert(hfEvent[i].staticEventHandler != 0);
-    return (*hfEvent[i].staticEventHandler)(hfEvent[i].eventHandler, event);
-}
-
-bool AsyncNodesHandle::ReaderSharedHandle::returnToSender(const Actor::Event &event) noexcept
-{
-    assert(!event.isRouted());
-    assert(cl1.sharedReadWriteLocked != 0);
-    Shared::ReadWriteLocked &sharedReadWriteLocked = *cl1.sharedReadWriteLocked;
-    EventChain::iterator i = sharedReadWriteLocked.toBeDeliveredEventChain.begin(),
-                         endi = sharedReadWriteLocked.toBeDeliveredEventChain.end();
-    for (; i != endi && &*i != &event; ++i)
-    {
-    }
-    if (i != endi)
-    {
-        sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeDeliveredEventChain);
-        return true;
-    }
-    return false;
-}
-
-void AsyncNodesHandle::ReaderSharedHandle::read() noexcept
-{
-    assert(cl1.sharedReadWriteLocked != 0);
-    Shared::ReadWriteLocked &sharedReadWriteLocked = *cl1.sharedReadWriteLocked;
-    assert(sharedReadWriteLocked.deliveredEventsFlag == false);
-    sharedReadWriteLocked.deliveredEventsFlag = true;
-    assert(sharedReadWriteLocked.readerNodeHandle != 0);
-    assert(sharedReadWriteLocked.readerNodeHandle->node != 0);
-    AsyncNode &node = *sharedReadWriteLocked.readerNodeHandle->node;
-    if (sharedReadWriteLocked.checkUndeliveredEventsFlag)
-    { // Flag will be falsed by next peer write
-        node.setWriteSignal(sharedReadWriteLocked.writerNodeId);
-    }
-    for (EventChain::iterator i = sharedReadWriteLocked.toBeDeliveredEventChain.begin(),
-                              endi = sharedReadWriteLocked.toBeDeliveredEventChain.end();
-         i != endi; node.loopUsagePerformanceCounterIncrement = 1)
-    {
-        assert(i->getSourceActorId() != i->getDestinationActorId());
-        assert(i->getDestinationInProcessActorId().nodeId == node.id);
-        Actor::Event &event = *i;
-        const Actor::InProcessActorId &eventDestinationInProcessActorId = event.getDestinationInProcessActorId();
-        const Actor::EventTable &eventTable = *eventDestinationInProcessActorId.eventTable;
-        if (eventDestinationInProcessActorId.getNodeActorId() == eventTable.nodeActorId)
-        {
-            try
-            {
-                if (eventTable.onEvent(event, node.corePerformanceCounters.onEventCount))
-                {
-                    ++i;
-                }
-                else
-                {
-                    i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeDeliveredEventChain);
-                }
-            }
-            catch (Actor::ReturnToSenderException &)
-            {
-                i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeDeliveredEventChain);
-            }
-            catch (std::exception &e)
-            {
-                ++i;
-                assert(eventTable.asyncActor != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle->node != 0);
-                node.nodeManager.exceptionHandler.onEventExceptionSynchronized(
-                    eventTable.asyncActor, typeid(*eventTable.asyncActor), "onEvent", event, e.what());
-            }
-            catch (...)
-            {
-                ++i;
-                assert(eventTable.asyncActor != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle->node != 0);
-                node.nodeManager.exceptionHandler.onEventExceptionSynchronized(
-                    eventTable.asyncActor, typeid(*eventTable.asyncActor), "onEvent", event, "unkwown exception");
-            }
-        }
-        else
-        {
-            i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeDeliveredEventChain);
-        }
-    }
-    for (EventChain::iterator i = sharedReadWriteLocked.toBeRoutedEventChain.begin(),
-                              endi = sharedReadWriteLocked.toBeRoutedEventChain.end();
-         i != endi; node.loopUsagePerformanceCounterIncrement = 1)
-    {
-        assert(i->getSourceActorId().isInProcess());
-        assert(!i->getDestinationActorId().isInProcess());
-        assert(!i->isRouteToSource());
-        assert(i->isRouteToDestination());
-        assert(!i->getRouteId().isInProcess());
-        assert(i->getRouteId().getNodeId() == node.id);
-        const Actor::ActorId::RouteId &routeId = i->getRouteId();
-        const Actor::NodeConnection *nodeConnection = routeId.nodeConnection;
-        assert(nodeConnection != 0);
-        if (routeId.getNodeConnectionId() == nodeConnection->nodeConnectionId)
-        {
-            Actor::Event &event = *i;
-            try
-            {
-                nodeConnection->onOutboundEventFn(nodeConnection->connector, event);
-                ++i;
-            }
-            catch (Actor::ReturnToSenderException &)
-            {
-                i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeRoutedEventChain);
-            }
-            catch (std::exception &e)
-            {
-                ++i;
-                assert(nodeConnection->connector != 0);
-                node.nodeManager.exceptionHandler.onEventExceptionSynchronized(0, typeid(*nodeConnection->connector),
-                                                                               "onOutboundEvent", event, e.what());
-            }
-            catch (...)
-            {
-                ++i;
-                assert(nodeConnection->connector != 0);
-                node.nodeManager.exceptionHandler.onEventExceptionSynchronized(
-                    0, typeid(*nodeConnection->connector), "onOutboundEvent", event, "unknown exception");
-            }
-        }
-        else
-        {
-            i = sharedReadWriteLocked.undeliveredEvent(i, sharedReadWriteLocked.toBeRoutedEventChain);
-        }
-    }
-    for (EventChain::iterator i = sharedReadWriteLocked.toBeUndeliveredRoutedEventChain.begin(),
-                              endi = sharedReadWriteLocked.toBeUndeliveredRoutedEventChain.end();
-         i != endi; ++i, node.loopUsagePerformanceCounterIncrement = 1)
-    {
-        assert(i->getSourceActorId().isInProcess());
-        assert(!i->getDestinationActorId().isInProcess());
-        assert(i->getSourceInProcessActorId().nodeId == node.id);
-        Actor::Event &event = *i;
-        const Actor::InProcessActorId &eventSourceInProcessActorId = event.getSourceInProcessActorId();
-        const Actor::EventTable &eventTable = *eventSourceInProcessActorId.eventTable;
-        if (eventSourceInProcessActorId.getNodeActorId() == eventTable.nodeActorId)
-        {
-            try
-            {
-                eventTable.onUndeliveredEvent(event);
-            }
-            catch (std::exception &e)
-            {
-                assert(eventTable.asyncActor != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle->node != 0);
-                node.nodeManager.exceptionHandler.onEventExceptionSynchronized(
-                    eventTable.asyncActor, typeid(*eventTable.asyncActor), "onUndeliveredEvent", event, e.what());
-            }
-            catch (...)
-            {
-                assert(eventTable.asyncActor != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle != 0);
-                assert(sharedReadWriteLocked.readerNodeHandle->node != 0);
-                node.nodeManager.exceptionHandler.onEventExceptionSynchronized(
-                    eventTable.asyncActor, typeid(*eventTable.asyncActor), "onUndeliveredEvent", event,
-                    "unknown exception");
-            }
-        }
-    }
-    Actor::OnUnreachableChain *actorOnUnreachableChain;
-    if (!sharedReadWriteLocked.unreachableNodeConnectionChain.empty() &&
-        !(actorOnUnreachableChain = &node.actorOnUnreachableChain)->empty())
-    {
-        node.loopUsagePerformanceCounterIncrement = 1;
-        dispatchUnreachableNodes(*actorOnUnreachableChain, sharedReadWriteLocked.unreachableNodeConnectionChain,
-                                 sharedReadWriteLocked.writerNodeId, node.nodeManager.exceptionHandler);
-    }
-}
-
-bool AsyncNodesHandle::WriterSharedHandle::write() noexcept
-{
-    cl2.shared.readWriteLocked.deliveredEventsFlag = false;
-    bool isWriteWorthy = cl2.shared.readWriteLocked.checkUndeliveredEventsFlag =
-        cl2.shared.writeCache.checkUndeliveredEventsFlag;
-    cl2.shared.writeCache.checkUndeliveredEventsFlag = false;
-    if (!cl2.shared.readWriteLocked.undeliveredEventChain.empty())
-    {
-        assert(cl1.writerNodeHandle != 0);
-        assert(cl1.writerNodeHandle->node != 0);
-        cl1.writerNodeHandle->node->loopUsagePerformanceCounterIncrement = 1;
-        writeDispatchAndClearUndeliveredEvents(cl2.shared.readWriteLocked.undeliveredEventChain);
-    }
-    {
-        EventChain emptyEventChain;
-        cl2.shared.readWriteLocked.toBeDeliveredEventChain.swap(emptyEventChain);
-    }
-    {
-        EventChain emptyEventChain;
-        cl2.shared.readWriteLocked.toBeRoutedEventChain.swap(emptyEventChain);
-    }
-    {
-        EventChain emptyEventChain;
-        cl2.shared.readWriteLocked.toBeUndeliveredRoutedEventChain.swap(emptyEventChain);
-    }
-    {
-        Shared::UnreachableNodeConnectionChain emptyUnreachableNodeConnectionChain;
-        cl2.shared.readWriteLocked.unreachableNodeConnectionChain.swap(emptyUnreachableNodeConnectionChain);
-    }
-    cl2.shared.writeCache.freeEventAllocatorPageChain.push_back(cl2.shared.readWriteLocked.usedEventAllocatorPageChain);
-    if (!cl2.shared.writeCache.toBeDeliveredEventChain.empty() || !cl2.shared.writeCache.toBeRoutedEventChain.empty() ||
-        !cl2.shared.writeCache.toBeUndeliveredRoutedEventChain.empty() ||
-        !cl2.shared.writeCache.unreachableNodeConnectionChain.empty())
-    {
-        isWriteWorthy = true;
-        if (cl2.shared.writeCache.batchId != std::numeric_limits<uint64_t>::max())
-        {
-            cl2.shared.writeCache.batchId += cl2.shared.writeCache.batchIdIncrement;
-            cl2.shared.writeCache.batchIdIncrement = 0;
-        }
-        cl2.shared.readWriteLocked.toBeDeliveredEventChain.swap(cl2.shared.writeCache.toBeDeliveredEventChain);
-        cl2.shared.readWriteLocked.toBeRoutedEventChain.swap(cl2.shared.writeCache.toBeRoutedEventChain);
-        cl2.shared.readWriteLocked.toBeUndeliveredRoutedEventChain.swap(
-            cl2.shared.writeCache.toBeUndeliveredRoutedEventChain);
-        cl2.shared.readWriteLocked.unreachableNodeConnectionChain.swap(
-            cl2.shared.writeCache.unreachableNodeConnectionChain);
-        cl2.shared.readWriteLocked.usedEventAllocatorPageChain.swap(cl2.shared.writeCache.usedEventAllocatorPageChain);
-        assert(cl2.shared.writeCache.toBeDeliveredEventChain.empty());
-        assert(cl2.shared.writeCache.toBeRoutedEventChain.empty());
-        assert(cl2.shared.writeCache.toBeUndeliveredRoutedEventChain.empty());
-        assert(cl2.shared.writeCache.unreachableNodeConnectionChain.empty());
-        assert(cl2.shared.writeCache.usedEventAllocatorPageChain.empty());
-        if (!cl2.shared.writeCache.freeEventAllocatorPageChain.empty())
-        {
-            cl2.shared.writeCache.usedEventAllocatorPageChain.push_front(
-                cl2.shared.writeCache.freeEventAllocatorPageChain.pop_front());
-        }
-        cl2.shared.writeCache.frontUsedEventAllocatorPageChainOffset = 0;
-    }
-    return isWriteWorthy;
-}
-
-bool AsyncNodesHandle::WriterSharedHandle::localOnEvent(const Actor::Event &event,
-                                                        uint64_t &performanceCounter) noexcept
-{
-    assert(cl1.writerNodeHandle != 0);
-    assert(cl1.writerNodeHandle->node != 0);
-    assert((!event.isRouted() && event.getSourceInProcessActorId().nodeId == cl1.writerNodeHandle->node->id) ||
-           (event.isRouted() && event.getRouteId().getNodeId() == cl1.writerNodeHandle->node->id));
-    assert(event.getDestinationInProcessActorId().nodeId == cl1.writerNodeHandle->node->id);
-    const Actor::ActorId &actorId = event.getDestinationActorId();
-    Actor::NodeActorId nodeActorId = actorId.getNodeActorId();
-    const Actor::EventTable *eventTable = actorId.eventTable;
-    if (nodeActorId == 0 || nodeActorId != eventTable->nodeActorId)
-    {
-        return false;
-    }
-    try
-    {
-        return eventTable->onEvent(event, performanceCounter);
-    }
-    catch (Actor::ReturnToSenderException &)
-    {
-        return false;
-    }
-    catch (std::exception &e)
-    {
-        assert(eventTable->asyncActor != 0);
-        cl1.writerNodeHandle->node->nodeManager.exceptionHandler.onEventExceptionSynchronized(
-            eventTable->asyncActor, typeid(*eventTable->asyncActor), "onEvent", event, e.what());
-    }
-    catch (...)
-    {
-        assert(eventTable->asyncActor != 0);
-        cl1.writerNodeHandle->node->nodeManager.exceptionHandler.onEventExceptionSynchronized(
-            eventTable->asyncActor, typeid(*eventTable->asyncActor), "onEvent", event, "unknown exception");
-    }
-    return true;
-}
-
-bool AsyncNodesHandle::WriterSharedHandle::localOnOutboundEvent(const Actor::Event &event) noexcept
-{
-    assert(cl1.writerNodeHandle != 0);
-    assert(cl1.writerNodeHandle->node != 0);
-    assert(event.getSourceActorId().isInProcess());
-    assert(event.getSourceInProcessActorId().nodeId == cl1.writerNodeHandle->node->id);
-    assert(!event.isRouteToSource());
-    assert(event.isRouteToDestination());
-    assert(!event.getRouteId().isInProcess());
-    assert(event.getRouteId().getNodeId() == cl1.writerNodeHandle->node->id);
-    const Actor::ActorId::RouteId &routeId = event.getRouteId();
-    const Actor::NodeConnection *nodeConnection = routeId.nodeConnection;
-    assert(nodeConnection != 0);
-    if (routeId.getNodeConnectionId() != nodeConnection->nodeConnectionId)
-    {
-        return false;
-    }
-    try
-    {
-        nodeConnection->onOutboundEventFn(nodeConnection->connector, event);
-    }
-    catch (Actor::ReturnToSenderException &)
-    {
-        return false;
-    }
-    catch (std::exception &e)
-    {
-        assert(nodeConnection->connector != 0);
-        cl1.writerNodeHandle->node->nodeManager.exceptionHandler.onEventExceptionSynchronized(
-            0, typeid(*nodeConnection->connector), "onOutboundEvent", event, e.what());
-    }
-    catch (...)
-    {
-        assert(nodeConnection->connector != 0);
-        cl1.writerNodeHandle->node->nodeManager.exceptionHandler.onEventExceptionSynchronized(
-            0, typeid(*nodeConnection->connector), "onOutboundEvent", event, "unknown exception");
-    }
-    return true;
-}
-
-void AsyncNodesHandle::Shared::WriteCache::newEventPage()
-{
-    if (freeEventAllocatorPageChain.empty())
-    {
-        if (nextEventAllocatorPageIndex + 1 == 0)
-        {
-            throw std::bad_alloc();
-        }
-        usedEventAllocatorPageChain.push_front(
-            new (eventAllocatorPageAllocator.insert(CACHE_LINE_SIZE + eventAllocatorPageSize))
-                AsyncNodesHandle::Shared::EventAllocatorPage(nextEventAllocatorPageIndex));
-        ++nextEventAllocatorPageIndex;
-    }
-    else
-    {
-        usedEventAllocatorPageChain.push_front(freeEventAllocatorPageChain.pop_front());
-    }
-    frontUsedEventAllocatorPageChainOffset = 0;
-}
-
-void *AsyncNodesHandle::Shared::WriteCache::allocateEvent(size_t sz)
-{
-    assert(frontUsedEventAllocatorPageChainOffset <= eventAllocatorPageSize);
-    if (usedEventAllocatorPageChain.empty() || eventAllocatorPageSize - frontUsedEventAllocatorPageChainOffset < sz)
-    {
-        if (sz > eventAllocatorPageSize)
-        {
-            breakThrow(std::bad_alloc());
-        }
-        newEventPage();
-    }
-    assert(!usedEventAllocatorPageChain.empty());
-    assert(eventAllocatorPageSize - frontUsedEventAllocatorPageChainOffset >= sz);
-    void *ret = usedEventAllocatorPageChain.front()->at(frontUsedEventAllocatorPageChainOffset);
-    frontUsedEventAllocatorPageChainOffset += sz;
-    totalWrittenByteSize += sz;
-    return ret;
-}
-
-void *AsyncNodesHandle::Shared::WriteCache::allocateEvent(size_t sz, uint32_t &eventPageIndex, size_t &eventPageOffset)
-{
-    assert(frontUsedEventAllocatorPageChainOffset <= eventAllocatorPageSize);
-    if (usedEventAllocatorPageChain.empty() || eventAllocatorPageSize - frontUsedEventAllocatorPageChainOffset < sz)
-    {
-        if (sz > eventAllocatorPageSize)
-        {
-            breakThrow(std::bad_alloc());
-        }
-        newEventPage();
-    }
-    assert(!usedEventAllocatorPageChain.empty());
-    assert(eventAllocatorPageSize - frontUsedEventAllocatorPageChainOffset >= sz);
-    AsyncNodesHandle::Shared::EventAllocatorPage &eventPage = *usedEventAllocatorPageChain.front();
-    void *ret = eventPage.at(frontUsedEventAllocatorPageChainOffset);
-    eventPageIndex = eventPage.index;
-    eventPageOffset = frontUsedEventAllocatorPageChainOffset;
-    frontUsedEventAllocatorPageChainOffset += sz;
-    totalWrittenByteSize += sz;
+    ENTERPRISE_0X5010(static_cast<Actor*>(static_cast<const Actor::EventTable*>(event.getDestinationActorId().eventTable)->asyncActor)->getAsyncNode(), &event, static_cast<void*>(hfEvent[i].eventHandler));
+    bool ret =  (*hfEvent[i].staticEventHandler)(hfEvent[i].eventHandler, event);
+    ENTERPRISE_0X5011(static_cast<Actor*>(static_cast<const Actor::EventTable*>(event.getDestinationActorId().eventTable)->asyncActor)->getAsyncNode());
     return ret;
 }
 

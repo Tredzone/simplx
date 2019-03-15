@@ -1,7 +1,7 @@
 /**
  * @file testparallel.cpp
  * @brief test parallel memory access
- * @copyright 2013-2018 Tredzone (www.tredzone.com). All rights reserved.
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
@@ -11,6 +11,10 @@
 
 #include "trz/engine/internal/parallel.h"
 
+// anonymous namespace to prevent link error due to multiple functions with same name
+namespace
+{
+    
 struct TestNodesHandler
 {
     static const int MAX_SIZE = 10;
@@ -58,7 +62,7 @@ struct TestNodesHandler
         SharedHandleControlData() : readCallToggle(false), writeCallToggle(false), writeFailedCallToggle(false) {}
     };
 
-    struct SharedHandle : SharedHandleData
+    struct SharedHandle : public SharedHandleData
     {
         SharedHandleControlData controlData;
         bool read()
@@ -487,6 +491,7 @@ void testAll()
     testWrite(testParallel);
     testRead(testParallel);
     testWriteFailed(testParallel);
+}
 }
 
 TEST(Parallel, init) { testInit(); }

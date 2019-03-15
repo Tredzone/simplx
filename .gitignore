@@ -21,12 +21,10 @@ doc/latex/
 .clang/
 .codelite/
 **/CodeLite/Debug/*
-**/Makefile
 **/*.mk
 **/tutos.txt
 **/Tests.txt
 **/Debug/
 e2e_localhost.txt
 /.vscode
-.vscode/*
-
+**/.vscode/*
