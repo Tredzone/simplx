@@ -13,7 +13,7 @@
 #include <chrono>
 #include <cstdint>
 
-#define VERBOSE_TEST 1
+#define VERBOSE_TEST 0
 
 #include "clientserver/connectionsuccessclient.hpp"
 #include "clientserver/connectionsuccessserver.hpp"
