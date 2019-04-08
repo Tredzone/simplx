@@ -29,7 +29,7 @@ for i in $compiler_set
 do
 
 # unitary tests engine
- [ "$dotestengine" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( rm -rf /simplx/test/build && mkdir /simplx/test/build && cd /simplx/test/build/ &&  cmake $* .. && make -j8 && make test ) && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
+ [ "$dotestengine" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( rm -rf /simplx/test/engine/build && mkdir /simplx/test/engine/build && cd /simplx/test/engine/build/ &&  cmake $* .. && make -j8 && make test ) && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
 
 # unitary tests connector tcp
  [ "$dotestconnector" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( rm -rf /simplx/test/connector/tcp/build && mkdir /simplx/test/connector/tcp/build && cd /simplx/test/connector/tcp/build/ &&  cmake $* .. && make -j8 && ./clientservertestu.bin && make test )  && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
