@@ -17,7 +17,8 @@ compiler_set_3="clang_3.8"
 [ "$dorelease" == "" ] && dorelease="1"
 [ "$dodebug" == "" ] && dodebug="1"
 
-[ "$dounit" == "" ] && dounit="1"
+[ "$dotestengine" == "" ] && dotestengine="1"
+[ "$dotestconnector" == "" ] && dotestconnector="1"
 [ "$dotutorials" == "" ] && dotutorials="1"
 
 function test
@@ -27,11 +28,14 @@ tmpfile=$(mktemp)
 for i in $compiler_set
 do
 
-# unitary tests
- [ "$dounit" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( rm -rf /simplx/test/build && mkdir /simplx/test/build && cd /simplx/test/build/ &&  cmake $* .. && make -j8 && make test ) && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
+# unitary tests engine
+ [ "$dotestengine" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( rm -rf /simplx/test/build && mkdir /simplx/test/build && cd /simplx/test/build/ &&  cmake $* .. && make -j8 && make test ) && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
 
-# tutorials
- [ "$dotutorials" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( cd /simplx/tutorials && find ./ -maxdepth 1 -iname \"??_*\" -exec bash -c \"f={} && cd \\\$f && rm -rf build && mkdir build && cd build && cmake .. && make -j8\" \; ) && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
+# unitary tests connector tcp
+ [ "$dotestconnector" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( rm -rf /simplx/test/connector/tcp/build && mkdir /simplx/test/connector/tcp/build && cd /simplx/test/connector/tcp/build/ &&  cmake $* .. && make -j8 && ./clientservertestu.bin && make test )  && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
+
+# tutorial
+ [ "$dotutorial" == "1" ] && docker run -it -v $DIR/../:/simplx -u $(id -u):$(id -g) --rm volatilebitfield/cpp:$i bash -c " ! ( cd /simplx/tutorial && find ./ -maxdepth 1 -iname \"??_*\" -exec bash -c \"f={} && cd \\\$f && rm -rf build && mkdir build && cd build && cmake .. && make -j8\" \; ) && echo [DEADBEEF] FAILED [$i]" | tee $tmpfile ; grep "DEADBEEF" $tmpfile > /dev/null && exit
 
 done;
 rm -rf $tmpfile
