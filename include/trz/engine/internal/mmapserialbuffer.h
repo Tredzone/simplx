@@ -46,9 +46,10 @@ public:
     ~mmapSerialBuffer() noexcept
     {
         assert(m_Buffer);
-        
         // unmap
+#ifndef NDEBUG 
         const int   err = ::munmap(m_Buffer, m_BufferSize);
+#endif
         assert(!err);
     }
     
