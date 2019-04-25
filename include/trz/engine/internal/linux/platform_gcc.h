@@ -1,6 +1,6 @@
 /**
  * @file platform_gcc.h
- * @brief Linux-specific OS wrapper
+ * @brief gcc-specific OS wrapper
  * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
@@ -12,20 +12,25 @@
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
+#include <vector>
+#include <string>
 #include <pthread.h>
-#include <stdint.h>
+#include <cstdint>
 #include <sys/time.h>
 #include <unistd.h>
 
 #ifndef NDEBUG
-    #include <vector>
     #include <execinfo.h>
 #endif
+
+#include "trz/engine/internal/linux/platform_linux.h"
 
 #include "trz/engine/internal/dlldecoration.h"      // Windows-only
 #include "trz/engine/internal/macro.h"
 #include "trz/engine/internal/rtexception.h"
 #include "trz/engine/internal/time.h"
+
+#include "trz/engine/internal/parallel/parallel_xplat.h"
 
 // get host endianness from compiler
 #ifndef __BYTE_ORDER__
@@ -46,24 +51,21 @@ namespace tredzone
 {
 // import into namespace
 using std::string;
+using std::vector;
 
-typedef pthread_mutex_t mutex_t;
 typedef pthread_cond_t signal_t;
-typedef pthread_t thread_t;
 typedef pthread_key_t tls_t;
 
-std::vector<std::string> debugBacktrace(const uint8_t stackTraceSize = 32) noexcept;
+vector<string> debugBacktrace(const uint8_t stackTraceSize = 32) noexcept;
 
-std::string demangleFromSymbolName(char *) noexcept;
+string demangleFromSymbolName(char *) noexcept;
 
 // symbols
-std::string cppDemangledTypeInfoName(const std::type_info &);
+string cppDemangledTypeInfoName(const std::type_info &);
 
 // system
 inline pid_t getPID();
-std::string systemErrorToString(int);
 inline size_t systemPageSize();
-inline void memoryBarrier();
 inline void *alignMalloc(size_t alignement, size_t size);
 inline void alignFree(size_t, void *);
 template <typename _Type> inline bool atomicCompareAndSwap(_Type *ptr, _Type oldval, _Type newval);
@@ -71,7 +73,6 @@ template <typename _Type> inline _Type atomicAddAndFetch(_Type *ptr, unsigned de
 template <typename _Type> inline _Type atomicSubAndFetch(_Type *ptr, unsigned delta);
 
 // time
-inline uint64_t getTSC();
 inline DateTime timeGetEpoch();
 
 /**
@@ -96,12 +97,6 @@ struct HighResolutionTime
     }
 };
 
-// mutex
-mutex_t mutexCreate(bool recursive = true);
-inline void mutexDestroy(mutex_t &);
-inline void mutexLock(mutex_t &);
-inline bool mutexTryLock(mutex_t &);
-inline void mutexUnlock(mutex_t &);
 inline signal_t mutexSignalCreate();
 inline void mutexSignalDestroy(signal_t &);
 inline void mutexSignalWait(signal_t &, mutex_t &lockedMutex);
@@ -139,8 +134,6 @@ pid_t getPID() { return getpid(); }
 
 size_t systemPageSize() { return (size_t)getpagesize(); }
 
-void memoryBarrier() { __sync_synchronize(); }
-
 void *alignMalloc(size_t alignement, size_t size)
 {
     void *ret;
@@ -173,6 +166,7 @@ template <typename _Type> _Type atomicSubAndFetch(_Type *ptr, unsigned delta)
     return __sync_sub_and_fetch(ptr, (_Type)delta);
 }
 
+inline
 uint64_t getTSC()
 {
 #ifdef __i386__
@@ -188,55 +182,6 @@ uint64_t getTSC()
     __asm__ volatile ("mrc p15, 0, %0, c9, c13, 0":"=r" (cc));
     return (uint64_t)cc; 
 #endif
-}
-
-DateTime timeGetEpoch()
-{
-    struct timeval now;
-    struct timezone tz;
-    gettimeofday(&now, &tz);
-    return DateTime((time_t)now.tv_sec, (uint32_t)now.tv_usec / 1000);
-}
-
-void mutexDestroy(mutex_t &handle)
-{
-    int cc = pthread_mutex_destroy(&handle);
-    if (cc)
-    {
-        throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
-    }
-}
-
-void mutexLock(mutex_t &handle)
-{
-    int cc = pthread_mutex_lock(&handle);
-    if (cc)
-    {
-        throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
-    }
-}
-
-bool mutexTryLock(mutex_t &handle)
-{
-    int cc = pthread_mutex_trylock(&handle);
-    bool success = (cc == 0);
-    if (success || cc == EBUSY)
-    {
-        return success;
-    }
-    else
-    {
-        throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
-    }
-}
-
-void mutexUnlock(mutex_t &handle)
-{
-    int cc = pthread_mutex_unlock(&handle);
-    if (cc)
-    {
-        throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
-    }
 }
 
 signal_t mutexSignalCreate()
@@ -307,9 +252,26 @@ void tlsSet(tls_t key, void *value)
     }
 }
 
-int	Soft_stoi(const std::string &s, const int def = -1);
+inline
+uint64_t    getTicksPerSec(const uint64_t &n_secs = 1)
+{
+    // depends on core & can change over time
+    const uint64_t start_tick = getTSC();
+    
+    ::sleep(n_secs);
+    
+    const uint64_t tickPerSec = (getTSC() - start_tick) / n_secs;
 
-string  GetHostnameIP(const string &name);
+    return tickPerSec;
+}
+
+DateTime timeGetEpoch()
+{
+    struct timeval now;
+    struct timezone tz;
+    gettimeofday(&now, &tz);
+    return DateTime((time_t)now.tv_sec, (uint32_t)now.tv_usec / 1000);
+}
 
 } // namespace tredzone
 

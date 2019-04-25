@@ -1,7 +1,7 @@
 /**
  * @author Valerian Vives <valerian.vives@tredzone.com>
  * @file networkcalls.hpp
- * @brief tcp system function wrapper
+ * @brief tcp system functions wrapper
  * (minimize system headers dependencies && mock allowance)
  * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
@@ -12,13 +12,9 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 
-// #include <iostream>
-// #include <cerrno>
-// #include <sstream>
-
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include <sys/types.h> /* See NOTES */
+#include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -78,9 +74,6 @@ class NetworkCalls
     {
         ssize_t ret = ::read(fd, buf, count);
 
-        // std::cout << ret << " " << (char *)buf << std::endl;
-        // if (ret == -1)
-        //     std::cout << std::strerror(errno) << std::endl;
         return ret;
     }
 
@@ -91,17 +84,6 @@ class NetworkCalls
 
     static int write(int fd, const void *buf, size_t count) noexcept
     {
-        // const char *charBuf = reinterpret_cast<const char *>(buf);
-        // std::ostringstream oss1;
-        // for (size_t i = 0; i < count; i++)
-        // {
-        //     oss1 << " " /*<< *(charBuf + i)*/ << "(" << (int)(*(charBuf + i))
-        //          << ")";
-        // }
-        // std::cout << "writing (looking for " << (int)'\r' << " and "
-        //           << (int)'\n'
-        //           << ")" << std::endl
-        //           << oss1.str() << std::endl;
         return ::write(fd, buf, count);
     }
 
@@ -206,6 +188,9 @@ class NetworkCalls
         Af_inet6 = AF_INET6,
     };
 };
+
 } // namespace tcp
+
 } // namespace connector
+
 } // namespace tredzone

@@ -45,7 +45,7 @@ To build and run the unit tests, which depend on the Google Test submodule, open
 
 ```
 git submodule update --init thirdparty/googletest
-cd test/engine
+cd test
 mkdir tbuild && cd tbuild
 cmake ..
 make -j8

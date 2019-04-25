@@ -3,8 +3,8 @@
 **/build/
 **/tbuild/
 /src/engine/build
-/tutorials/build
-/tutorials/build_*
+/tutorial/build
+/tutorial/build_*
 /.autotools
 /.cproject
 /.project

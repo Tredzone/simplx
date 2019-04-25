@@ -12,12 +12,12 @@
 
 #include "trz/engine/platform.h"
 
+#include "trz/engine/internal/parallel/parallel_xplat.h"
+
+
 namespace tredzone
 {
 
-template <class _Mutex> class Lock;
-template <class _Mutex> class TryLock;
-template <class _Mutex> class ReverseLock;
 class Mutex;
 class Signal;
 class Thread;
@@ -26,137 +26,7 @@ template <class T> class ThreadLocalStorage;
 template <class T> class ThreadLocalStorage<T *>;
 
 /**
- * @brief Tredzone ThreadId class
- */
-class ThreadId
-{
-  public:
-    /** @brief Constructor */
-    inline ThreadId(const thread_t &) noexcept;
-    /** @brief Get the current thread */
-    inline static ThreadId current() noexcept;
-    /** @brief comparison operator */
-    inline bool operator==(const ThreadId &) const noexcept;
-    /** @brief comparison operator */
-    inline bool operator!=(const ThreadId &) const noexcept;
-
-  private:
-    thread_t id;
-};
-
-/**
- * @brief Tredzone Mutex class
- */
-class Mutex
-{
-  public:
-    typedef ::tredzone::Lock<Mutex> Lock;
-    typedef ::tredzone::TryLock<Mutex> TryLock;
-    typedef ::tredzone::ReverseLock<Mutex> ReverseLock;
-
-    /** @brief Constructor */
-    inline Mutex() noexcept;
-    /** @brief Destructor */
-    inline ~Mutex() noexcept;
-
-#ifndef NDEBUG
-    /**
-     * @brief Check if the mutex is locked
-     * @return true if locked
-     */
-    inline bool debugIsLocked() noexcept;
-#endif
-
-  protected:
-    friend class Signal;
-    friend class ::tredzone::Lock<Mutex>;
-    friend class ::tredzone::TryLock<Mutex>;
-    friend class ::tredzone::ReverseLock<Mutex>;
-
-    mutex_t handle;
-#ifndef NDEBUG
-    bool debugLocked;
-    ThreadId debugLockingThread;
-#endif
-
-    /**
-     * @brief Lock mutex
-     * @note thread-safe method
-     * @throws RunTimeException
-     */
-    inline void lock();
-    /**
-     * @brief Try to lock the mutex
-     * @return true if lock is successful
-     * @note thread-safe method
-     * @throws RunTimeException
-     */
-    inline bool tryLock();
-    /**
-     * @brief Unlock mutex
-     * @note thread-safe method
-     * @throws RunTimeException
-     */
-    inline void unlock();
-
-  private:
-    Mutex &operator=(const Mutex &);
-};
-
-/**
- * @brief Tredzone Lock class
- */
-template <class _Mutex> class Lock
-{
-  public:
-    /** @brief Constructor */
-    inline Lock(_Mutex &) noexcept;
-    /** @brief Destructor */
-    inline ~Lock() noexcept;
-
-  private:
-    _Mutex &mutex;
-    /** @brief Equal operator */
-    Lock &operator=(const Lock &);
-};
-
-/**
- * @brief Tredzone TryLock class
- */
-template <class _Mutex> class TryLock
-{
-  public:
-    const bool isLocked;
-    /** @brief Constructor */
-    inline TryLock(_Mutex &) noexcept;
-    /** @brief Destructor */
-    inline ~TryLock() noexcept;
-
-  private:
-    _Mutex &mutex;
-    /** @brief Equal operator */
-    TryLock &operator=(const TryLock &);
-};
-
-/**
- * @brief Tredzone ReverseLock class
- */
-template <class _Mutex> class ReverseLock
-{
-  public:
-    /** @brief Constructor */
-    inline ReverseLock(_Mutex &) noexcept;
-    /** @brief Destructor */
-    inline ~ReverseLock() noexcept;
-
-  private:
-    _Mutex &mutex;
-    /** @brief Equal operator */
-    ReverseLock &operator=(const ReverseLock &);
-};
-
-/**
- * @brief Tredzone Signal class
+ * @brief Signal class
  */
 class Signal
 {
@@ -181,7 +51,7 @@ class Signal
 };
 
 /**
- * @brief Tredzone Thread class
+ * @brief Thread class
  */
 class TREDZONE_DLL Thread
 {
@@ -226,15 +96,21 @@ class TREDZONE_DLL Thread
 template <class T> class ThreadLocalStorage;
 
 /**
- * @brief Tredzone ThreadLocalStorage (TLS) class
+ * @brief ThreadLocalStorage (TLS) class
  */
-template <class T> class ThreadLocalStorage<T *>
+template <class T>
+class ThreadLocalStorage<T *>
 {
-  public:
-    /** @brief Constructor */
-    inline ThreadLocalStorage() : tlsKey(tlsCreate()) {}
-    /** @brief Destructor */
-    inline ~ThreadLocalStorage() noexcept { tlsDestroy(tlsKey); }
+public:
+
+    inline ThreadLocalStorage() : tlsKey(tlsCreate())
+    {
+    }
+    
+    inline ~ThreadLocalStorage() noexcept
+    {
+        tlsDestroy(tlsKey);
+    }
     /**
      * @brief Get the TLS value
      * @return TLS value
@@ -251,7 +127,8 @@ template <class T> class ThreadLocalStorage<T *>
      */
     inline void set(T *p) { tlsSet(tlsKey, const_cast<void *>(static_cast<const void *>(p))); }
 
-  private:
+private:
+
     tls_t tlsKey;
 };
 
@@ -322,16 +199,28 @@ bool Thread::isRunning() const noexcept
 
 #ifdef NDEBUG
 // Release
-Mutex::Mutex() noexcept : handle(mutexCreate(false)) {}
+    Mutex::Mutex() noexcept
+        : handle(mutexCreate(MUTEX_T::NON_RECURSIVE))
+    {
+    }
 
-void Mutex::lock() { mutexLock(handle); }
+void Mutex::lock()
+{
+    mutexLock(handle);
+}
 
-bool Mutex::tryLock() { return mutexTryLock(handle); }
-
-void Mutex::unlock() { mutexUnlock(handle); }
+void Mutex::unlock()
+{
+    mutexUnlock(handle);
+}
 #else
-// Debug
-Mutex::Mutex() noexcept : handle(mutexCreate(true)), debugLocked(false), debugLockingThread(ThreadId::current()) {}
+
+// Debug build
+
+    Mutex::Mutex() noexcept
+        : handle(mutexCreate(MUTEX_T::RECURSIVE)), debugLocked(false), debugLockingThread(ThreadId::current()), m_TriggerCount(0)
+{
+}
 
 void Mutex::lock()
 {
@@ -339,20 +228,8 @@ void Mutex::lock()
     assert(!debugLocked);
 
     debugLocked = true;
+    m_TriggerCount++;
     debugLockingThread = ThreadId::current();
-}
-
-bool Mutex::tryLock()
-{
-    bool ret = mutexTryLock(handle);
-    if (ret == true)
-    {
-        assert(!debugLocked);
-
-        debugLocked = true;
-        debugLockingThread = ThreadId::current();
-    }
-    return ret;
 }
 
 void Mutex::unlock()
@@ -378,33 +255,22 @@ bool Mutex::debugIsLocked() noexcept
 }
 #endif
 
-Mutex::~Mutex() noexcept
+template <class _Mutex>
+Lock<_Mutex>::Lock(_Mutex &pMutex) noexcept
+    : mutex(pMutex)
 {
-    TREDZONE_TRY
-    assert(!debugIsLocked());
-    mutexDestroy(handle); // throw(tredzone::RunTimeException)
-    TREDZONE_CATCH_AND_EXIT_FAILURE_WITH_CERR_MESSAGE
+    mutex.lock();
 }
 
-template <class _Mutex> Lock<_Mutex>::Lock(_Mutex &pMutex) noexcept : mutex(pMutex) { mutex.lock(); }
-
-template <class _Mutex> Lock<_Mutex>::~Lock() noexcept { mutex.unlock(); }
-
-template <class _Mutex> TryLock<_Mutex>::TryLock(_Mutex &pMutex) noexcept : isLocked(pMutex.tryLock()), mutex(pMutex) {}
-
-template <class _Mutex> TryLock<_Mutex>::~TryLock() noexcept
+template <class _Mutex> Lock<_Mutex>::~Lock() noexcept
 {
-    if (isLocked)
-    {
-        mutex.unlock();
-    }
+    mutex.unlock();
 }
 
-template <class _Mutex> ReverseLock<_Mutex>::ReverseLock(_Mutex &pMutex) noexcept : mutex(pMutex) { mutex.unlock(); }
-
-template <class _Mutex> ReverseLock<_Mutex>::~ReverseLock() noexcept { mutex.lock(); }
-
-Signal::Signal(Mutex &pMutex) : mutex(pMutex), handle(mutexSignalCreate()) {}
+Signal::Signal(Mutex &pMutex)
+    : mutex(pMutex), handle(mutexSignalCreate())
+{
+}
 
 Signal::~Signal() { mutexSignalDestroy(handle); }
 
@@ -447,7 +313,10 @@ void Signal::wait(const Time &delay, const Time &currentEpochTime)
 #endif
 }
 
-void Signal::notify() { mutexSignalNotify(handle); }
+void Signal::notify()
+{
+    mutexSignalNotify(handle);
+}
 
 } // namespace
 
@@ -562,13 +431,6 @@ namespace tredzone
  * @brief Lock a mutex. If the mutex is already locked, the calling thread shall block until the mutex becomes
  * available.
  * @param mutex to lock
- */
-/**
- * @fn inline bool mutexTryLock(mutex_t&)
- * @brief Equivalent to mutexLock(), except that if the mutex object referenced by mutex is currently locked
- * (by any thread, including the current thread), the call shall return immediately.
- * @param mutex to try and lock
- * @return true if mutex has been locked, false otherwise.
  */
 /**
  * @fn inline void mutexUnlock(mutex_t&)

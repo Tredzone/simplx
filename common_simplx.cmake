@@ -47,21 +47,19 @@ function(trz_set_cxx_flags)
             # gcc <= 4.9
             set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Werror -Wno-deprecated -Woverloaded-virtual -Wsign-promo -Wno-noexcept-type")
         endif()
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")       # -g already defined
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")       			# -g already defined
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")					# adding flags here doesn't work
     elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
         set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11")
     else()
         message (FATAL_ERROR "unsupported C++ compiler ${CMAKE_CXX_COMPILER_ID}")
     endif()
     
-    # will overwrite previous flags?? [PL]
-    #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    #    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
-    #elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    #    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-    #endif()
-            
+    if ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+		# disable warning/errors after assert(v) makes v an unused variable
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable")
+    endif()
+    
     # re-export to parent -- should be CACHE variable?
     set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} PARENT_SCOPE)
 

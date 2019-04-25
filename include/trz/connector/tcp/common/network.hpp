@@ -1,8 +1,7 @@
 /**
  * @author Valerian Vives <valerian.vives@tredzone.com>
  * @file network.hpp
- * @brief tcp network actor; listen (by system call) client(s) to accept and
- * openconnection
+ * @brief tcp network actor
  * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
@@ -50,12 +49,12 @@ using ::std::chrono::steady_clock;
 using fd_t = int64_t;
 
 /**
- * @brief actor that manage the connection and communication to the network
+ * @brief actor managing network connection and communication
  *
- * @tparam _MaxReceivePerLoop the maximum read to do each loop
- * @tparam _MaxSendPerLoop the maximum write to do each loop
+ * @tparam _MaxReceivePerLoop maximum read operations per loop
+ * @tparam _MaxSendPerLoop maximum write operations per loop
  * @tparam _MaxDataPerRead the maximum data to get each read
- * @tparam _MaxPendingIncomingConnectionRequest the maximum pending excternal connection
+ * @tparam _MaxPendingIncomingConnectionRequest maximum pending external connections per service. Additional connections will be rejected
  */
 template <size_t _MaxReceivePerLoop, size_t _MaxSendPerLoop, size_t _MaxDataPerRead,
           size_t _MaxPendingIncomingConnectionRequest, class _TNetworkCalls = NetworkCalls>
@@ -66,7 +65,7 @@ class Network : public Actor
 
     public:
     /**
-     * @brief the exception is trown when the creation of epoll file description fails
+     * @brief exception thrown when epoll file descriptor creation fails
      *
      */
     class EpollCreateException : public exception
@@ -76,7 +75,7 @@ class Network : public Actor
     };
 
     /**
-     * @brief the exception is trown when a direct send fails
+     * @brief exception trown when a directSend(...) call fails
      *
      */
     class DirectSendException : public exception
@@ -96,34 +95,25 @@ class Network : public Actor
         const string &m_err;
     };
 
-#if __GNUC__ < 6
-    // use the default std allocator
     /**
-     * @brief Construct a new Network
+     * @brief instantiate a new Network
      *
      */
+#if __GNUC__ < 6
+    // with default std allocator
     Network(void) noexcept(false)
         : m_clientBySocket(), m_connectionPending(), m_connectQueue(), m_sendQueue(), m_readQueue(),
           m_connectCallback(*this), m_pendingConnectionCallback(*this), m_sendCallback(*this), m_epollCallback(*this),
           m_serverBySocket(), m_acceptingSocket(), m_listenQueue(), m_listenCallback(*this)
-    {
-        m_epollSocket = _TNetworkCalls::epoll_create1(0);
-        if (m_epollSocket == -1)
-        {
-            throw EpollCreateException();
-        }
-    }
 #else
-    /**
-     * @brief Construct a new Network
-     *
-     */
+    // with custom allocator
     Network(void) noexcept(false)
         : m_clientBySocket(getAllocator()), m_connectionPending(getAllocator()), m_connectQueue(getAllocator()),
           m_sendQueue(getAllocator()), m_readQueue(getAllocator()), m_connectCallback(*this),
           m_pendingConnectionCallback(*this), m_sendCallback(*this), m_epollCallback(*this),
           m_serverBySocket(getAllocator()), m_acceptingSocket(getAllocator()), m_listenQueue(getAllocator()),
           m_listenCallback(*this)
+#endif
     {
         m_epollSocket = _TNetworkCalls::epoll_create1(0);
         if (m_epollSocket == -1)
@@ -131,10 +121,9 @@ class Network : public Actor
             throw EpollCreateException();
         }
     }
-#endif
 
     /**
-     * @brief stop the network
+     * @brief close all network sockets
      *
      */
     void stopNetwork(void) noexcept
@@ -145,7 +134,7 @@ class Network : public Actor
             const auto it = m_clientBySocket.begin();
             onDisconnected(it->first);
         }
-        // disconnect all server
+        // disconnect all servers
         while (!m_serverBySocket.empty())
         {
             const auto it = m_serverBySocket.begin();
@@ -154,7 +143,7 @@ class Network : public Actor
     }
 
     /**
-     * @brief callback called when the actor is requested to destroy itself
+     * @brief callback triggered when actor receives a destruction request
      *
      */
     void onDestroyRequest(void) noexcept override
@@ -164,7 +153,7 @@ class Network : public Actor
     }
 
     /**
-     * @brief Destroy the Network
+     * @brief Destructor
      *
      */
     virtual ~Network(void) noexcept
@@ -174,57 +163,55 @@ class Network : public Actor
     }
 
     /**
-     * @brief register a client to be connected
-     * then on its callback the network will connect clients in queue
+     * @brief register a client actor for later, asynchronous (on next network handler loop) connection
      *
-     * @param client to asynchronously connect
+     * @param client actor
      */
     void registerConnect(TcpClient *client) noexcept
     {
         assert(client);
         if (!client)
             return;
-        // add the client to the queue
+        // add client to connection queue
         m_connectQueue.push(client);
-        // register callback where network connect queued client
+        // register callback that'll be triggered when network connected said client
         registerCallbackOnce(m_connectCallback);
     }
 
     /**
-     * @brief register a new server to listen
-     * then on its callback the network will connect servers in queue
+     * @brief queue a server actor for later, asynchronous (on next network handler loop) listening
      *
-     * @param server
+     * @param server actor
      */
     void registerListen(TcpServer *server) noexcept
     {
         assert(server);
         if (!server)
             return;
-        // add the server to the queue
+        // add server to listen queue
         m_listenQueue.push(server);
-        // register callback where network connect queued server
+        // register callback that'll be triggered when network connected said server
         registerCallbackOnce(m_listenCallback);
     }
 
     /**
-     * @brief synchronously close the socket then remove the client/server associated
+     * @brief synchronously close socket and remove any associated client or server actor
      *
      * @param socket to disconnect
      * @return true when socket was connected
-     * @return false when socket wasn't connected
+     * @return false when socket was not connected
      */
     bool disconnect(const fd_t socket) noexcept
     {
-        // close the socket
+        // close socket
         const bool wasConnected =
             (_TNetworkCalls::shutdown(socket, _TNetworkCalls::Shut_rdwr) == 0 && _TNetworkCalls::close(socket) == 0);
 
-        // remove client or server bound to the socket
+        // remove client or server bound to said socket
         m_clientBySocket.erase(socket);
         m_serverBySocket.erase(socket);
 
-        // cancel callback not animore needed
+        // cancel any existing callback, as is no longer needed
         if (m_clientBySocket.empty())
         {
             m_sendCallback.unregister();
@@ -237,11 +224,10 @@ class Network : public Actor
     }
 
     /**
-     * @brief add a client (identified by socket) to the send queue
-     * then on its callback the network will dequeue by getting the clients' buffers
-     * and writing it on the socket
+     * @brief queue a client actor for later, asynchronous (on next network handler loop) 
+     * getting and writing its buffer to the socket
      *
-     * @param socket (identifier of the client) to put in queue
+     * @param socket identifying client
      */
     void addToSendQueue(const fd_t socket) noexcept
     {
@@ -250,14 +236,14 @@ class Network : public Actor
     }
 
     /**
-     * @brief synchronously write "datasize" amount of "data" on the "socket" in a maximum of "retryNumber" attempts.
-     * As oppose to blockingDirectSend, here the write opperation is non-blocking.
-     * /!\ can importantly decrease performance for multi client/server use on the same core, prefere addToSendQueue.
+     * @brief synchronously write [datasize] bytes of data to socket in max [retryNumber] attempts
+     * Here, the write opperation is non-blocking (as opposed to calling blockingDirectSend())
+     * /!\ can significantly degrade performance when multiple clients/servers are used on the same core, so prefer addToSendQueue
      *
      * @param socket to send on
      * @param data to send
-     * @param dataSize the amount ot data to send
-     * @param retryNumber the amount of attempt to send
+     * @param dataSize bytes of data to send
+     * @param retryNumber max send attempts
      */
     void directSend(const fd_t socket, const uint8_t *data, const size_t dataSize, ssize_t retryNumber = 10)
     {
@@ -280,14 +266,14 @@ class Network : public Actor
     }
 
     /**
-     * @brief synchronously write "datasize" amount of "data" on the "socket" in a maximum of "retryNumber" attempts.
-     * As oppose to directSend, here the write opperation is blocking.
-     * /!\ can importantly decrease performance for multi client/server use the on same core, prefere addToSendQueue.
+     * @brief synchronously write [datasize] bytes of data to the socket in max [retryNumber] attempts
+     * Here, the write opperation is blocking, as opposed to calling directSend()
+     * /!\ can significantly degrade performance when multiple clients/servers are used on the same core, so prefer addToSendQueue
      *
      * @param socket to send on
      * @param data to send
-     * @param dataSize the amount ot data to send
-     * @param retryNumber the amount of attempt to send
+     * @param dataSize bytes of data to send
+     * @param retryNumber max send attempts
      */
     void blockingDirectSend(const fd_t socket, const uint8_t *data, const size_t dataSize, ssize_t retryNumber = 10)
     {
@@ -309,20 +295,19 @@ class Network : public Actor
     }
 
     /**
-     * @brief bind a client to a socket
-     * when a server spawn a client (server process) to handle an accepted socket
+     * @brief bind socket to a server-spawned actor
      *
-     * @param client the handler
-     * @param fd
+     * @param serverProcess server-spawned actor
+     * @param fd new socket of accepted connection
      */
-    void bindClientHandler(TcpClient *client, const fd_t fd)
+    void bindClientHandler(TcpClient *serverProcess, const fd_t fd)
     {
-        assert(client);
-        if (!client)
+        assert(serverProcess);
+        if (!serverProcess)
         {
         }
-        m_clientBySocket.emplace(fd, client);
-        m_connectionPending.emplace(fd, make_tuple(steady_clock::now(), client->getTimeout()));
+        m_clientBySocket.emplace(fd, serverProcess);
+        m_connectionPending.emplace(fd, make_tuple(steady_clock::now(), serverProcess->getTimeout()));
         registerCallbackOnce(m_pendingConnectionCallback);
 
         if (!m_clientBySocket.empty() || !m_serverBySocket.empty())
@@ -330,8 +315,8 @@ class Network : public Actor
     }
 
     /**
-     * @brief read the socket using a non-blocking receive operation
-     * must be called directly by the client with auto read desable
+     * @brief non-blocking socket read
+     * must be called directly by the client (whose auto-read flag is disabled)
      *
      * @param socket to read
      */
@@ -339,7 +324,7 @@ class Network : public Actor
     {
         array<uint8_t, _MaxDataPerRead> dataToReceive;
 
-        // read _MaxDataPerRead amount of data on the socket
+        // read _MaxDataPerRead bytes on socket
         const ssize_t bytes_read =
             _TNetworkCalls::recv(socket, dataToReceive.data(), _MaxDataPerRead, _TNetworkCalls::Msg_dontwait);
         if (bytes_read == 0)
@@ -354,14 +339,14 @@ class Network : public Actor
                 {
                     it->second->onDataReceivedBase(dataToReceive.data(), static_cast<size_t>(bytes_read));
                 }
-                // if all data has not been read queue the socket for a further read
+                // if all data couldn't be read this call, re-queue socket for another read in next loop iteration
                 if (bytes_read == _MaxDataPerRead)
                     addToReadQueue(socket);
             }
         }
         else
         {
-            // if the socket was not ready queue the socket for a further read
+            // if socket wasn't ready, re-queue it for another read in next loop iteration
             if (errno == _TNetworkCalls::Eagain && errno == _TNetworkCalls::Ewouldblock)
             {
                 addToReadQueue(socket);
@@ -375,10 +360,10 @@ class Network : public Actor
 
     protected:
     /**
-     * @brief callback called just after a timed out of a socket connection occurs
-     * notify handler of the state changes through its callbacks, then remove it
+     * @brief callback triggered upon socket connection timeout
+     * triggers actor callback, then removes socket and associated actor from network handler
      *
-     * @param socket that was trying to connect
+     * @param socket that failed to connect
      */
     void onConnectionTimedOut(const fd_t socket) noexcept
     {
@@ -404,8 +389,8 @@ class Network : public Actor
     }
 
     /**
-     * @brief callback called just after a connection of a socket has been lost
-     * notify handler of the state changes through its callbacks, then remove it
+     * @brief callback triggered socket connection loss
+     * triggers actor callback, then removes socket and associated actor from network handler
      *
      * @param socket that has lost connection
      */
@@ -455,8 +440,8 @@ class Network : public Actor
     }
 
     /**
-     * @brief callback called just after a disconnection of a socket
-     * notify handler of the state changes through its callbacks, then remove it
+     * @brief callback triggered upon socket disconnection
+     * triggers actor callback, then removes socket and associated actor from network handler
      *
      * @param socket that has disconnect
      */
@@ -507,9 +492,8 @@ class Network : public Actor
     }
 
     /**
-     * @brief callback called just after a internal socket successfully connect
-     * notify handler of the state changes through its callbacks
-     * then register to the epoll callback
+     * @brief callback triggered upon successful socket connection
+     * triggers actor callback, then registers epoll callback
      *
      * @param socket that just been connected
      * @return true when connection succeed
@@ -540,8 +524,7 @@ class Network : public Actor
     }
 
     /**
-     * @brief network actorCallback that gets clients from queue (FIFO) and connects them
-     * get client in queue, get param in client, create the socket, connect it
+     * @brief pops clients from FIFO queue and connects them
      * the connect opperation is non-blocking
      *
      */
@@ -549,14 +532,14 @@ class Network : public Actor
     {
         while (!m_connectQueue.empty())
         {
-            // get client from queue
+            // pop client from queue
             TcpClient *client = m_connectQueue.front();
             m_connectQueue.pop();
             assert(client);
             if (!client)
                 continue;
 
-            // get param in client
+            // get client params
             const auto     params        = client->getConnectParam();
             const uint64_t addressFamily = params.m_addressFamily;
             const string & ipAddress     = params.m_ipAddress;
@@ -568,7 +551,7 @@ class Network : public Actor
             serv_addr.sin_family = addressFamily;
             serv_addr.sin_port   = _TNetworkCalls::wrapped_htons(port);
 
-            // Convert IP addresses from text to binary form
+            // Convert IP addresses from text to binary
             if (_TNetworkCalls::inet_pton(addressFamily, ipAddress.c_str(), &serv_addr.sin_addr) < 0)
             {
                 client->onConnectFailedBase();
@@ -584,17 +567,17 @@ class Network : public Actor
                 continue;
             }
 
-            // trying to bind to a specific network interface (and optionally a specific local port)
+            // if requested, try binding to specific source/local network interface/port
             if (!params.m_ipAddressSource.empty())
             {
                 typename _TNetworkCalls::Sockaddr_in localaddr;
                 localaddr.sin_family      = addressFamily;
                 localaddr.sin_addr.s_addr = _TNetworkCalls::inet_addr(params.m_ipAddressSource.c_str());
-                localaddr.sin_port        = 0; // local port 0 for any
+                localaddr.sin_port        = 0; // local port 0 for [any]
                 _TNetworkCalls::bind(newSocket, &localaddr, sizeof(localaddr));
             }
 
-            // set socket non-blocking for connection
+            // make socket non-blocking for connection
             if (!_TNetworkCalls::setSocketNonBlocking(newSocket))
             {
                 _TNetworkCalls::close(newSocket);
@@ -602,7 +585,7 @@ class Network : public Actor
                 continue;
             }
 
-            // add socket to the epoll
+            // add new socket to the epoll socket
             typename _TNetworkCalls::Epoll_event epollEvent;
             epollEvent.events  = _TNetworkCalls::Epollout | _TNetworkCalls::Epollin | _TNetworkCalls::Epollet;
             epollEvent.data.fd = newSocket;
@@ -614,7 +597,7 @@ class Network : public Actor
                 continue;
             }
 
-            // associate the socket to the handler (client actor)
+            // associate socket to (client actor) handler
             m_clientBySocket.emplace(newSocket, client);
             m_connectionPending.emplace(newSocket, make_tuple(client->getRegistrationTime(), client->getTimeout()));
 
@@ -627,20 +610,20 @@ class Network : public Actor
                 continue;
             }
 
-            // register actor callbacks (to complete connection or to timed out)
+            // register actor callbacks (triggered upon connection completion or timeout)
             registerCallbackOnce(m_epollCallback);
             registerCallbackOnce(m_pendingConnectionCallback);
 
-            // connection ready to be completed
             if (connectResult >= 0)
-            {
+            {   
+                // successful socket connection
                 onCompleteConnection(newSocket);
             }
         }
     }
 
     /**
-     * @brief network actorCallback checking all pending connection for timed out
+     * @brief network actorCallback, checks all pending connection for timeout
      *
      */
     void onPendingConnectionCallback(void) noexcept
@@ -668,7 +651,7 @@ class Network : public Actor
     }
 
     /**
-     * @brief network actorCallback getting server from queue (FIFO) and make them listening
+     * @brief network actorCallback, pops server from queue (FIFO) and puts it in listening mode
      * get server in queue, get param in server, create the socket, start listening
      * the listening socket is set to non-blocking
      *
@@ -677,7 +660,7 @@ class Network : public Actor
     {
         while (!m_listenQueue.empty())
         {
-            // get server
+            // pop server
             TcpServer *server = m_listenQueue.front();
             m_listenQueue.pop();
             assert(server);
@@ -715,7 +698,7 @@ class Network : public Actor
                 continue;
             }
 
-            // trying to bind to a specific network interface (and optionally a specific local port)
+            // if rquested, try binding to a specific network interface/port
             typename _TNetworkCalls::Sockaddr_in address;
             address.sin_family      = addressFamily;
             address.sin_addr.s_addr = addressType;
@@ -727,7 +710,7 @@ class Network : public Actor
                 continue;
             }
 
-            // add socket to the epoll
+            // add new socket to epoll socket
             typename _TNetworkCalls::Epoll_event event;
             event.data.fd = serverSocket;
             event.events  = _TNetworkCalls::Epollin;
@@ -746,7 +729,7 @@ class Network : public Actor
                 continue;
             }
 
-            // associate the socket to the handler (client actor)
+            // associate socket with (client actor) handler
             m_serverBySocket.emplace(serverSocket, server);
             server->onListenSucceedBase(serverSocket);
         }
@@ -755,17 +738,17 @@ class Network : public Actor
     }
 
     /**
-     * @brief callback called when a listening socket receive a new connection from a client
+     * @brief callback triggered when a listening socket receives new client connection
      *
-     * @param serverSocket the listening socket
-     * @param server the actor handling this listening socket
+     * @param serverSocket listening socket
+     * @param server actor handling this listening socket
      */
     void onNewConnection(fd_t serverSocket, TcpServer *server) noexcept
     {
         assert(server);
         if (!server)
             return;
-        // accept the connection to get infos about the client
+        // accept connection and get client info
         char       clientIp[_TNetworkCalls::Inet6_addrstrlen];
         const fd_t fd = _TNetworkCalls::accept4(serverSocket, clientIp, _TNetworkCalls::Sock_nonblock);
         if (fd < 0 && errno != _TNetworkCalls::Eagain && errno != _TNetworkCalls::Ewouldblock)
@@ -776,11 +759,11 @@ class Network : public Actor
         }
         else if (fd < 0)
         {
-            // the non-blocking server socket is not yet ready to accept just return until a further try succeed
+            // the non-blocking server socket isn't yet ready to accept, so wait to reprocess at next loop iteration
             return;
         }
 
-        // adding the new socket to the epoll
+        // add new socket to the epoll socket
         typename _TNetworkCalls::Epoll_event event;
         event.events  = _TNetworkCalls::Epollout;
         event.data.fd = fd;
@@ -790,13 +773,13 @@ class Network : public Actor
             server->onAcceptFailed();
         }
 
-        // callback the server to  handle this new connection
+        // tell server to  handle this new connection
         server->onNewConnectionBase(fd, clientIp);
     }
 
     /**
-     * @brief network actorCallback checking any change on sockets (server and client) it manages
-     * check the epoll and if an event appened on it, execute the good behavior.
+     * @brief network actorCallback, checks any managed socket changes (server and client)
+     * check epoll and dispatch any event
      *
      */
     void onEpollCallback(void) noexcept
@@ -810,61 +793,61 @@ class Network : public Actor
 
         for (int64_t i = 0; i < event_count; i++)
         {
-            // error on socket
+            // socket error
             if (m_events[i].events & _TNetworkCalls::Epollerr)
             {
-                // normal disconnection
                 if (m_events[i].events & _TNetworkCalls::Epollhup)
                 {
+                    // normal disconnection
                     onDisconnected(m_events[i].data.fd);
                 }
-                // unplaned disconnection
                 else
                 {
+                    // unexpected disconnection
                     onConnectionLost(m_events[i].data.fd);
                 }
             }
-            // outgoing event (connection)
             else if (m_events[i].events & _TNetworkCalls::Epollout)
             {
+                // outgoing event (connection)
+
                 // check pending connection
                 const auto it1 = m_connectionPending.find(m_events[i].data.fd);
                 if (it1 != m_connectionPending.end())
                 {
+                    // successful socket connection
                     m_connectionPending.erase(it1);
-                    // complete connection connecting
+                    
                     if (!onCompleteConnection(m_events[i].data.fd))
                         continue;
 
-                    // switching socket event in epoll to communication
+                    // toggle socket event flags in epoll
                     typename _TNetworkCalls::Epoll_event event;
                     event.events  = _TNetworkCalls::Epollin | _TNetworkCalls::Epollet;
                     event.data.fd = m_events[i].data.fd;
                     if (_TNetworkCalls::epoll_ctl(m_epollSocket, _TNetworkCalls::Epoll_ctl_mod, m_events[i].data.fd,
                                                   &event) < 0)
                     {
-                        // when failing, complete connection disconnecting
+                        // socket event toggling failed
                         auto it2 = m_clientBySocket.find(m_events[i].data.fd);
                         if (it2 != m_clientBySocket.end())
-                        {
+                        {   
                             onConnectionLost(m_events[i].data.fd);
                         }
                     }
                 }
             }
-            // incoming event (communication: new msg / incoming)
             else if (m_events[i].events & _TNetworkCalls::Epollin)
             {
-                // if the socket is a server one, this is a connection request
+                // incoming event
                 const auto it = m_serverBySocket.find(m_events[i].data.fd);
                 if (it != m_serverBySocket.end())
                 {
+                    // server socket = incoming client
                     onNewConnection(it->first, it->second);
                 }
-                // else this is a new message
                 else
-                {
-                    // treat socket having message to read
+                {   // client socket = message
                     addToReadQueue(m_events[i].data.fd);
                 }
             }
@@ -882,8 +865,8 @@ class Network : public Actor
     }
 
     /**
-     * @brief add a socket having message to the read queue if its handler is set to auto read
-     * otherwise signal to the client that a new message arrived
+     * @brief queue a client actor for later, asynchronous (on next network handler loop) reading
+     * if AutoRead flag false: merely signal client that a new message arrived
      *
      * @param fd socket having message to read
      */
@@ -907,7 +890,7 @@ class Network : public Actor
     }
 
     /**
-     * @brief run the read of all clients in queue until _MaxReceivePerLoop is reach
+     * @brief repeatedly read from all clients in queue, up to [_MaxReceivePerLoop] times
      *
      */
     void readSockets(void) noexcept
@@ -922,9 +905,9 @@ class Network : public Actor
     }
 
     /**
-     * @brief network actorCallback that gets clients (by sockets) from queue (FIFO) and make them send data
-     * get client in queue, get data in client, send data, queue for sending the remaining data
-     * the send opperation is non-blocking then can be partial
+     * @brief network actorCallback, pops clients (by sockets) from queue (FIFO) and makes them send data
+     * get client in queue, get data in client, send data, re-queue to send any remaining data at next loop iteration
+     * the send opperation is non-blocking and can be segmented
      *
      */
     void onSendCallback(void) noexcept
@@ -932,7 +915,7 @@ class Network : public Actor
         size_t sendCount = _MaxSendPerLoop;
         while (!m_sendQueue.empty() && sendCount > 0)
         {
-            // getting the client from queue
+            // pop client from queue
             const fd_t socket = m_sendQueue.front();
             m_sendQueue.pop();
             const auto it1 = m_clientBySocket.find(socket);
@@ -952,7 +935,7 @@ class Network : public Actor
                 const bool   isRemainingData = it1->second->shiftBuffer(sentDataSize) > 0;
                 if (isRemainingData)
                 {
-                    // queue socket for sending the remaining data
+                    // re-queue socket to send remaining data at next loop iteration
                     m_sendQueue.push(socket);
                 }
                 if (--sendCount == 0)
@@ -962,9 +945,9 @@ class Network : public Actor
     }
 
     /**
-     * @brief technical method to register actorCallback only once and not change the actorCallback order
+     * @brief low-level method to register actorCallback only once without affecting the existing actorCallback order
      *
-     * @tparam _Callback the actorCallback type to register
+     * @tparam _Callback actorCallback type to register
      * @param callback to register
      */
     template <class _Callback> void registerCallbackOnce(_Callback &callback)
@@ -977,7 +960,7 @@ class Network : public Actor
     }
 
     /**
-     * @brief the actorCallback used to connect registered clients
+     * @brief actorCallback used for connecting registered clients
      *
      */
     struct ConnectCallback : public Actor::Callback
@@ -993,7 +976,7 @@ class Network : public Actor
     };
 
     /**
-     * @brief the actorCallback used to check the timeout of pending connections
+     * @brief actorCallback used for checking a pending connection's timeout
      *
      */
     struct PendingConnectionCallback : public Actor::Callback
@@ -1009,7 +992,7 @@ class Network : public Actor
     };
 
     /**
-     * @brief the actorCallback used to send data of registered clients
+     * @brief actorCallback used to send data of registered clients
      *
      */
     struct SendCallback : public Actor::Callback
@@ -1025,7 +1008,7 @@ class Network : public Actor
     };
 
     /**
-     * @brief the actorCallback used to start listening of registered servers
+     * @brief actorCallback putting registered servers in listening state
      *
      */
     struct ListenCallback : public Actor::Callback
@@ -1041,7 +1024,7 @@ class Network : public Actor
     };
 
     /**
-     * @brief the actorCallback used to check any event on the sockets managed by this network
+     * @brief actorCallback used for evenet-polling sockets managed by this network
      *
      */
     struct EpollCallback : public Actor::Callback
@@ -1057,8 +1040,8 @@ class Network : public Actor
         }
     };
 
-    // beffore gcc 6 the tredzone allocator seems not working: disabling it
 #if __GNUC__ < 6
+    // custom allocators don't work prior to gcc 6; use std allocator instead
     unordered_map<fd_t, TcpClient *>                                   m_clientBySocket;
     unordered_map<fd_t, tuple<steady_clock::time_point, microseconds>> m_connectionPending;
 
@@ -1076,6 +1059,7 @@ class Network : public Actor
     unordered_set<fd_t>                  m_acceptingSocket;
     queue<TcpServer *>                   m_listenQueue;
 #else
+    // custom allocator
     unordered_map<fd_t, TcpClient *, hash<fd_t>, equal_to<fd_t>, Actor::Allocator<pair<const fd_t, TcpClient *>>>
         m_clientBySocket;
     unordered_map<fd_t, tuple<steady_clock::time_point, microseconds>, hash<fd_t>, equal_to<fd_t>,
@@ -1102,7 +1086,10 @@ class Network : public Actor
     const microseconds m_zeroMicrosecond  = microseconds(0);
     bool               m_coutCallbackFlag = true;
     ListenCallback     m_listenCallback;
-}; // namespace tcp
+};
+
 } // namespace tcp
+
 } // namespace connector
+
 } // namespace tredzone

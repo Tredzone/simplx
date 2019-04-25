@@ -1,4 +1,3 @@
-#pragma once
 /**
  * @file clienttestactor.cpp
  * @brief this class is the manager that start NetworkClient,
@@ -7,6 +6,8 @@
  * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
+
+#pragma once
 
 #include "client/clienttestbase.hpp"
 #include "clientserver/eventandservicetag.hpp"
@@ -58,9 +59,9 @@ class ClientTestActor : public ClientTestBase<_TNetwork, _SendBufferSize, _Recei
 
     virtual void startTest() noexcept {}
 
-    private:
+private:
     /**
-     * @brief callback to let all networks actors start before start it
+     * @brief instantiates all network actors before starting test
      *
      */
     class TestStarter : public Actor::Callback

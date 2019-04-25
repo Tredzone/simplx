@@ -9,7 +9,7 @@ trz_set_cxx_flags()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable -Wno-unused-function -Wfatal-errors")
 
 enable_testing()
-trz_add_topdir(src/util/timer)                          # order matters ?? [PL]
+trz_add_topdir(src/pattern/timer)                          # order matters ?? [PL]
 trz_add_topdir(thirdparty/googletest/googletest)
 trz_add_topdir(src/engine)
 

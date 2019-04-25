@@ -6,3 +6,6 @@
 [submodule "enterprise"]
 	path = enterprise
 	url = ssh://git@github.com/tredzone/enterprise.git
+[submodule "thirdparty/json"]
+	path = thirdparty/json
+	url = https://github.com/nlohmann/json.git

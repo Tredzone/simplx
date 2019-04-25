@@ -11,9 +11,9 @@
 
 #include "trz/engine/actor.h"
 
-#include "trz/util/timer/timerevent.h"
-#include "trz/util/timer/timerproxy.h"
-#include "trz/util/timer/timeractor.h"
+#include "trz/pattern/timer/timerevent.h"
+#include "trz/pattern/timer/timerproxy.h"
+#include "trz/pattern/timer/timeractor.h"
 
 using namespace tredzone;
 using namespace tredzone::timer;

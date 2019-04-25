@@ -19,7 +19,7 @@ namespace tredzone
 #define TREDZONE_DEFAULT_STREAM_BUFFER_INCREMENT_SIZE 512 /**< Default stream buffer increment size */
 
 /**
- * @brief Tredzone StreamBuffer class
+ * @brief StreamBuffer class
  */
 template <typename _Char, class _Allocator, size_t _BufferSizeIncrement = TREDZONE_DEFAULT_STREAM_BUFFER_INCREMENT_SIZE>
 class StreamBuffer : public std::basic_streambuf<_Char>
@@ -111,7 +111,7 @@ class StreamBuffer : public std::basic_streambuf<_Char>
 };
 
 /**
- * @brief Tredzone OutputStringStream class
+ * @brief OutputStringStream class
  */
 template <typename _Char, class _Allocator, size_t _BufferSizeIncrement = 512>
 struct OutputStringStream : private StreamBuffer<_Char, _Allocator, _BufferSizeIncrement>, std::basic_ostream<_Char>
@@ -132,7 +132,7 @@ struct OutputStringStream : private StreamBuffer<_Char, _Allocator, _BufferSizeI
 };
 
 /**
- * @brief Tredzone OutputStringStream class
+ * @brief OutputStringStream class
  */
 template <class _Allocator, size_t _BufferSizeIncrement>
 struct OutputStringStream<char, _Allocator, _BufferSizeIncrement>

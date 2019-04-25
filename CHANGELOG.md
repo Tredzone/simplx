@@ -12,7 +12,28 @@ Sub-sections: Added, Removed, Depreceted </br>
 ### Refactored
 --->
 
+## [2.7.1] - 2019-04-24
 
+### Added
+- tcp connector comments cleanup
+- IWaitCondition::wait_for()
+  
+### Removed
+- TREDZONE_ENGINE_VERSION_BRANCH
+
+
+## [2.7.0] -2019-04-08
+
+### Added
+- asynchronous TCP/IP communication layer
+  - HTTP server layer
+  
+
+## [2.6.10] - 2019-03-22
+
+- CWE and readability fixes
+
+  
 ## [2.6.9] - 2019-03-15
 
 - upgraded to gcc 8.2 & clang 4.0 compatibility

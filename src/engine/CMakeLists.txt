@@ -10,7 +10,9 @@ list(APPEND SOURCE_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/node.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/RefMapper.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/linux/platform_gcc.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/e2e_stub.cpp                # (body will be noped when e2e enabled)
+        ${CMAKE_CURRENT_SOURCE_DIR}/linux/platform_linux.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/parallel/parallel_xplat.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/e2e_stub.cpp                    # (body will be noped when e2e enabled)
     )
 
 add_library(${TARGET_NAME} STATIC ${SOURCE_FILES})

@@ -1,7 +1,7 @@
 /**
  * @author Valerian Vives <valerian.vives@tredzone.com>
  * @file iserver.hpp
- * @brief server interface
+ * @brief tcp server interface
  * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
@@ -27,20 +27,20 @@ using fd_t = int64_t;
 using ::std::exception;
 
 /**
- * @brief the server interface
+ * @brief tcp server interface
  * 
- * @tparam _TNetwork the network that manages all server/client for this core 
+ * @tparam _TNetwork network managing all server/clients for this core 
  */
 template <class _TNetwork> class IServer
 {
-    public:
+public:
     /**
-     * @brief Listen param class
+     * @brief Listen parameters
      * 
      */
     class ListenParam
     {
-        public:
+    public:
         int64_t m_addressFamily;
         int64_t m_addressType;
         int64_t m_port;
@@ -48,7 +48,7 @@ template <class _TNetwork> class IServer
 
 
     /**
-     * @brief the exception is trown when the server is already listening and ask to register listen
+     * @brief exception trown when server is asked to listen but was was already listening
      * 
      */
     class AlreadyListeningException : public exception
@@ -83,7 +83,7 @@ template <class _TNetwork> class IServer
     virtual ~IServer(void) = default;
 
     /**
-     * @brief stop all open communication for this server
+     * @brief stop all open communications for this server
      */
     virtual void stopAllServerProcess(void) = 0;
     
@@ -92,7 +92,7 @@ template <class _TNetwork> class IServer
      * 
      * @param addressFamily ip address type AF_INET(IPv4) - AF_INET6(IPv6) 
      * @param addressType listenning adress ( *.*.*.* for any)
-     * @param port to bind the listenning socket (0 to any)
+     * @param port to bind listenning socket to (0 to any)
      * 
      * @throw AlreadyListeningException
      * 
@@ -100,7 +100,7 @@ template <class _TNetwork> class IServer
     virtual void registerListen(const int64_t addressFamily, const int64_t addressType, const int64_t port) = 0;
 
     /**
-     * @brief stop the listen
+     * @brief stop listening
      * 
      */
     virtual void stopListening(void) noexcept = 0;
@@ -109,88 +109,85 @@ template <class _TNetwork> class IServer
     friend _TNetwork;
 
     /**
-     * @brief callback called when server process actor (handling a communication) send a notification of it's destruction
+     * @brief callback triggered when server process actor (handling a communication) sent a notification of its destruction
      * 
      * @param serverProcess the actor id of the server process actor
      */
     virtual void onServerProcessDestroy(const Actor::ActorId& serverProcess) noexcept = 0;
 
     /**
-     * @brief callback called after a new client did connect and the connection has been established & handled in an actor
+     * @brief callback triggered after a new client connected and connection has been established & handled by an actor
      * 
-     * @param fd socket of the new communication(used to close the connection)
-     * @param clientIp ip of the client that just connect (used to filter)
-     * @param serverProcessActorId id of the actor handling the communication
+     * @param fd socket of new communication (used to later close connection)
+     * @param clientIp ip of client that just connect (used to filter)
+     * @param serverProcessActorId id of actor handling communication
      */
     virtual void onNewConnection(fd_t fd, const char *clientIp, const Actor::ActorId &serverProcessActorId) noexcept = 0;
 
     /**
-     * @brief callback called after listen failed
+     * @brief callback triggered after failed listen
      * 
      */
     virtual void onListenFailed(void) noexcept = 0;
 
     /**
-     * @brief callback called after listen succeed
+     * @brief callback triggered after successful listen
      * 
      */
     virtual void onListenSucceed(void) noexcept = 0;
 
     /**
-     * @brief callback called after accept (on incomming connection request) failed 
+     * @brief callback triggered after failed accept (on incomming connection request)
      * 
      */
     virtual void onAcceptFailed(void) noexcept = 0;
 
     /**
-     * @brief callback called after the server stoped listening
+     * @brief callback triggered after server stoped listening
      * 
      */
     virtual void onListenStopped(void) noexcept = 0;
 
     /**
-     * @brief Get the Listen parameters object
+     * @brief Get Listen parameters
      * 
      * @return const ListenParam& the params
      */
     virtual const ListenParam &getListenParam(void) const noexcept = 0;
 
-    private:
+private:
+
     /**
-     * @brief technical callback called just after a new client as been accepted. 
-     * must define the actor handling the communication
-     * then call the higher level callback onNewConnection
+     * @brief low-level callback triggered upon new client has been accepted
      * 
-     * @param fd socket of the new communication(used to close the connection)
-     * @param clientIp ip of the client that just connect (used to filter)
+     * @param fd new socket of accepted connection (later used to close connection)
+     * @param clientIp ip of client that just connected
      * 
      */
     virtual void onNewConnectionBase(fd_t fd, const char *clientIp) noexcept = 0;
 
     /**
-     * @brief technical callback called after listen failed.
-     * can be use to set internal flags/variable or execute technical method
-     * then should call the higher level callback onListenFailed
+     * @brief low-level callback triggered upon failed listen attempt
      * 
      */
     virtual void onListenFailedBase(void) noexcept = 0;
 
     /**
-     * @brief technical callback called after listen succeed.
-     * can be use to set internal flags/variable or execute technical method
-     * then should call the higher level callback onListenSucceed
+     * @brief low-level callback triggered after successful listen
      * 
      * @param fd the new listening socket
      */
     virtual void onListenSucceedBase(fd_t fd) noexcept = 0;
 
     /**
-     * @brief technical callback called after listen stopped.
-     * can be use to set internal flags/variable or execute technical method
-     * then should call the higher level callback onListenStopped
+     * @brief low-level callback triggered upon listen stopped
      * 
      */
     virtual void onListenStoppedBase(void) noexcept = 0;
+};
 
-};}}
+} // namespace tcp
+
+} // namespace connector
+
 } // namespace tredzone

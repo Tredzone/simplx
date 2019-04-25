@@ -18,7 +18,7 @@
 #include "trz/engine/internal/intrinsics.h"
 #include "trz/engine/internal/parallel.h"
 #include "trz/engine/internal/RefMapper.h"
-#include "trz/util/enterprise.h"
+#include "trz/pattern/enterprise.h"
 
 #define CRITICAL_ASSERT(x)                                                                                             \
     if (!(x))                                                                                                          \
@@ -687,7 +687,7 @@ public:
         char                                    cacheLineHeaderPadding[CACHE_LINE_SIZE - 1];
         Mutex                                   mutex;
         std::bitset<SINGLETON_ACTOR_INDEX_SIZE> singletonActorIndexBitSet;
-        std::bitset<Actor::MAX_EVENT_ID_COUNT>  eventIdBitSet;
+        std::bitset<Actor::MAX_EVENT_ID_COUNT>  eventIdBitSet;                                      // for e2e or for ALL events?
         EventToStreamFunctions                  eventToStreamFunctions[Actor::MAX_EVENT_ID_COUNT];
         EventIsE2ECapableFunction               eventIsE2ECapableFunction[Actor::MAX_EVENT_ID_COUNT];
         AbsoluteEventIds                        m_AbsoluteEventIds;

@@ -36,7 +36,7 @@ template <class _TNetwork> class IClient
 {
     public:
     /**
-     * @brief connection param class
+     * @brief connection parameters
      *
      */
     class ConnectParam
@@ -51,8 +51,7 @@ template <class _TNetwork> class IClient
     };
 
     /**
-     * @brief the exception is thrown when the client is already connected or registered for connection and ask to
-     * register connect
+     * @brief this exception is thrown when a client registers itself for connection but is already connected or registered for connection
      *
      */
     class AlreadyConnectedException : public exception
@@ -87,7 +86,7 @@ template <class _TNetwork> class IClient
     };
 
     /**
-     * @brief the exception is thrown when the client is not connected and try to send a message
+     * @brief this exception is thrown when an unconnected client tries to send a message
      *
      */
     class NotConnectedException : public exception
@@ -111,8 +110,8 @@ template <class _TNetwork> class IClient
     };
 
     /**
-     * @brief the exception is thrown when the client tries to send a message bigger than the remaining space in the
-     * sending buffer
+     * @brief this exception is thrown when a client tries sending a message larger than the remaining space in the
+     * send buffer
      *
      */
     class SendBufferFullException : public exception
@@ -136,35 +135,34 @@ template <class _TNetwork> class IClient
     };
 
     /**
-     * @brief Destroy the IClient object
+     * @brief Destructor
      *
      */
     virtual ~IClient(void) noexcept = default;
 
     /**
-     * @brief register this client to be connected
-     * should call setConnectionParam
-     * then registerConnect() which registers current Client with the newly set parameters
+     * @brief register this client for later, asynchronous connection
+     * client code should previously have called setConnectionParam()
      *
-     * @param ipAddress the ip to connect to
-     * @param addressFamily ip address type AF_INET(IPv4) - AF_INET6(IPv6)
-     * @param port the port to connect to
-     * @param timeoutUSec the delay in microSecond before timeout the connection process
-     * @param messageHeaderSize the minimum size of the header (0 means no header)
-     * @param ipAddressSource the adress of the interface to use to connect from ( *.*.*.* for any)
+     * @param ipAddress to connect to
+     * @param addressFamily type AF_INET(IPv4) - AF_INET6(IPv6)
+     * @param port to connect to
+     * @param timeoutUSec connection timeout, in microSeconds
+     * @param messageHeaderSize minimum header size (0 for no header)
+     * @param ipAddressSource adress of source interface to connect from (use "0.0.0.0" for any)
      */
     virtual void registerConnect(const string &ipAddress, int64_t addressFamily, uint64_t port, uint64_t timeoutUSec,
                                  size_t messageHeaderSize, const string &ipAddressSource) = 0;
 
     /**
-     * @brief Set the Connection Parameters object
+     * @brief Set Connection Parameters
      *
-     * @param ipAddress the ip to connect to
-     * @param addressFamily ip address type AF_INET(IPv4) - AF_INET6(IPv6)
-     * @param port the port to connect to
-     * @param timeoutUSec the delay in microSecond before timeout the connection process
-     * @param messageHeaderSize the minimum size of the header (0 means no header)
-     * @param ipAddressSource the adress of the interface to use to connect from ( *.*.*.* for any)
+     * @param ipAddress to connect to
+     * @param addressFamily ip address  AF_INET(IPv4) - AF_INET6(IPv6)
+     * @param port to connect to
+     * @param timeoutUSec connection timeout, in microSeconds
+     * @param messageHeaderSize minimum header size (0 for no header)
+     * @param ipAddressSource the adress of the interface to use to connect from ("0.0.0.0" for any)
      *
      * @throw AlreadyConnectedException
      */
@@ -179,164 +177,163 @@ template <class _TNetwork> class IClient
     virtual const ConnectParam &getConnectParam(void) const noexcept = 0;
 
     /**
-     * @brief register this client to be connected
-     * the connection will use the parameters set using setConnectParam
+     * @brief register client for later, asynchronous connection
+     * will use parameters previously set by setConnectParam()
      *
      * @throw AlreadyConnectedException
      */
     virtual void registerConnect() = 0;
 
     /**
-     * @brief hight level method closing the connection must call disconnect base to effectively disconnect
+     * @brief high-level method closing the connection
      *
      */
     virtual void disconnect(void) noexcept = 0;
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * must call sendBase after user actions and after type conversion of data to effectively send the data
+     * @brief add data to send buffer and register buffer to be asynchronously sent by network
+     * user code must thereafter call sendBase(...) to actually send data
      *
-     * @param data the data to send
+     * @param data to send
      */
     virtual void send(const uint8_t data) = 0;
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * must call sendBase after user actions and after type conversion of data to effectively send the data
+     * @brief add data to send buffer and register buffer to be asynchronously sent by network
+     * user code must thereafter call sendBase(...) to actually send data
      *
-     * @param data the data to send
+     * @param data to send
      */
     virtual void send(const string &data) = 0;
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * must call sendBase after user actions and after type conversion of data to effectively send the data
+     * @brief add data to send buffer and register buffer to be asynchronously sent by network
+     * user code must thereafter call sendBase(...) to actually send data
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
+     * @param data to send
+     * @param dataSize to send
      */
     virtual void send(const char *data, const size_t dataSize) = 0;
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * must call sendBase after user actions and after type conversion of data to effectively send the data
+     * @brief add data to send buffer and register buffer to be asynchronously sent by network
+     * user code must thereafter call sendBase(...) to actually send data
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
+     * @param data to send
+     * @param dataSize to send
      */
     virtual void send(const uint8_t *data, const size_t dataSize) = 0;
 
     /**
-     * @brief directly send data (sync) through the network
-     * must call directSendBase after user actions and after type conversion of data to effectively send the data
+     * @brief synchronously send data through network
+     * user code must thereafter call directSendBase(...) to actually send data
      *
-     * @param data the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param blocking flag, if false use a nonblocking send 
+     * @param retry number of retries when the socket would block
      */
     virtual void directSend(const uint8_t data, const bool blocking = false, ssize_t retry = 10) = 0;
 
     /**
-     * @brief directly send data (sync) through the network
-     * must call directSendBase after user actions and after type conversion of data to effectively send the data
+     * @brief synchronously send data through network
+     * user code must thereafter call directSendBase(...) to actually send data
      *
-     * @param data the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of retries when socket would block
      */
     virtual void directSend(const string &data, const bool blocking = false, ssize_t retry = 10) = 0;
 
     /**
-     * @brief directly send data (sync) through the network
-     * must call directSendBase after user actions and after type conversion of data to effectively send the data
+     * @brief synchronously send data through network
+     * user code must thereafter call directSendBase(...) to actually send data
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param dataSize to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of retries when socket would block
      */
     virtual void directSend(const char *data, const size_t dataSize, const bool blocking = false,
                             ssize_t retry = 10) = 0;
 
     /**
-     * @brief directly send data (sync) through the network
-     * must call directSendBase after user actions and after type conversion of data to effectively send the data
+     * @brief synchronously send data through network
+     * user code must thereafter call directSendBase(...) to actually send data
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param dataSize to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of retries when socket would block
      */
     virtual void directSend(const uint8_t *data, const size_t dataSize, const bool blocking = false,
                             ssize_t retry = 10) = 0;
 
     /**
-     * @brief Get the Sender Buffer Content Size
+     * @brief Get Sender Buffer Content Size
      *
-     * @return size_t size of the buffer content
+     * @return size_t size of buffer content
      */
     virtual size_t getSenderBufferContentSize(void) const noexcept = 0;
 
     /**
-     * @brief Get the Receiver Buffer Content Size
+     * @brief Get Receiver Buffer Content Size
      *
-     * @return size_t size of the buffer content
+     * @return size_t size of buffer content
      */
     virtual size_t getReceiverBufferContentSize(void) const noexcept = 0;
 
     /**
-     * @brief empty the sender buffer
+     * @brief clear sender buffer
      *
      */
     virtual void clearSenderBuffer(void) noexcept = 0;
 
     /**
-     * @brief empty the receiver buffer
+     * @brief clear receiver buffer
      *
      */
     virtual void clearReceiverBuffer(void) noexcept = 0;
 
     /**
-     * @brief Get the Fd object
+     * @brief Get socket file descriptor
      *
-     * @return fd_t the socket ascociated to this client
+     * @return fd_t socket ascociated with this client
      */
     virtual fd_t getFd(void) const noexcept = 0;
 
     /**
-     * @brief register object to self destroy
+     * @brief register this actor for later, asynchronous self-destruction
      *
      */
     virtual void destroy(void) noexcept = 0;
 
     /**
-     * @brief check if a new message is available in the buffer
+     * @brief check if new message is available in buffer
      *
-     * @return true message is available
-     * @return false no message is available
+     * @return true message(s) available
+     * @return false no message available
      */
     virtual bool isNewMessageToRead(void) const noexcept = 0;
 
     /**
-     * @brief if a message is available,
-     * read the socket through the network until no message are available or limit is reached
+     * @brief read the socket messages until no more are available or limit is reached
      *
-     * @param limit maximum number of read to process
+     * @param limit maximum number of read operations
      */
     virtual void readSocket(size_t limit = 1) noexcept = 0;
 
     /**
-     * @brief Get the Auto Read flag
+     * @brief Get Auto-Read flag
      *
-     * @return true network automaticaly read new message then callback onDataReceived
-     * @return false network just set the flag MessageToRead then run the callback onNewMessageToReadBase
+     * @return true network will automaticaly read any new messages, then trigger onDataReceived() callback
+     * @return false on new message, network will just set MessageToRead flag to true then trigger onNewMessageToReadBase() callback
      */
     virtual bool getAutoReadFlag(void) const noexcept = 0;
 
     /**
      * @brief Set the Auto Read flag
-     * true: network automaticaly read new message then callback onDataReceived
-     * false: network just set the flag MessageToRead then run the callback onNewMessageToReadBase
+     * true: true network will automaticaly read any new messages, then trigger onDataReceived() callback
+     * false: false on new message, network will just set MessageToRead flag to true then trigger onNewMessageToReadBase() callback
      *
      * @param autoread flag value
      */
@@ -344,125 +341,124 @@ template <class _TNetwork> class IClient
 
     friend _TNetwork;
 
-    protected:
+protected:
     /**
-     * @brief callback calledwhen auto read flag is false and a new message is received
+     * @brief callback triggered when auto-read flag is false and new message is received
      *
      */
     virtual void onNewMessageToRead(void) noexcept = 0;
 
     /**
-     * @brief Get the Header Size
+     * @brief Get Header Size
      *
-     * @param data the data received
-     * @return size_t the current Header Size
+     * @param data received
+     * @return size_t current header size
      */
     virtual size_t getHeaderSize(const uint8_t *data) noexcept = 0;
 
     /**
-     * @brief Get the Data Size using the header
+     * @brief Get Data Size using header
      *
-     * @param data the data received
-     * @param currentHeaderSize the current Header Size
-     * @return uint64_t the data Size
+     * @param data received
+     * @param currentHeaderSize current header size
+     * @return uint64_t data Size
      */
     virtual uint64_t getDataSize(const uint8_t *data, size_t currentHeaderSize) noexcept = 0;
 
     /**
-     * @brief callback called after a connection failed
+     * @brief callback triggered upon failed connection
      *
      */
     virtual void onConnectFailed(void) noexcept = 0;
 
     /**
-     * @brief callback called after the connection atempt reached timeout
+     * @brief callback triggered upon connection timeout
      *
      */
     virtual void onConnectTimedOut(void) noexcept = 0;
 
     /**
-     * @brief callback called when the connection has been lost
+     * @brief callback triggered upon lost connection
      *
      */
     virtual void onConnectionLost(void) noexcept = 0;
 
     /**
-     * @brief callback called after a successful connection
+     * @brief callback triggered upon successful connection
      *
      */
     virtual void onConnect(void) noexcept = 0;
 
     /**
-     * @brief callback called after a disconnection
+     * @brief callback triggered upon disconnection
      *
      */
     virtual void onDisconnect(void) noexcept = 0;
 
     /**
-     * @brief callback called after a completed data (according to header) is received
+     * @brief callback triggered upon complete data reception (according to size specified in header)
      *
-     * @param data the data received
-     * @param dataSize the size of the data
+     * @param data received
+     * @param dataSize size data
      */
     virtual void onDataReceived(const uint8_t *data, size_t dataSize) noexcept = 0;
 
     /**
-     * @brief callback called after a data is received but its size (according to header) is bigger than the receiver
-     * buffer this method will be called for each data received until the all "to big data" has been received so the
-     * client has to manage the buffering. then the next header is read and if the next data fit the buffer size
-     * onDataReceived is used
+     * @brief callback triggered after data is received but its size (according to header) would overflow receiver buffer. 
+     * Method will be called for each data chunk received until entire payload has been received. Hence, 
+     * buffering must be managed by user code itself
+     * Next header will be processed normally
      *
-     * @param data the (probably partial) data received
-     * @param dataSize the (probably partial) data size
+     * @param data (probably partial) data received
+     * @param dataSize (probably partial) data size
      */
     virtual void onOverflowDataReceived(const uint8_t *data, size_t dataSize) noexcept = 0;
 
     /**
-     * @brief Get the Data To Send (sender buffer)
+     * @brief Get Data To Send (sender buffer)
      *
-     * @return tuple<const uint8_t *, size_t> the buffer as a tuple of data pointer and the size of the data
+     * @return tuple<const uint8_t *, size_t> buffer as tuple of data pointer and size
      */
     virtual tuple<const uint8_t *, size_t> getDataToSend(void) noexcept = 0;
 
     /**
-     * @brief Get the connection Timeout
+     * @brief Get connection Timeout
      *
-     * @return const microseconds& the timeout
+     * @return const microseconds& timeout
      */
     virtual const microseconds &getTimeout(void) const noexcept = 0;
 
     /**
-     * @brief Get the Registration Time
+     * @brief Get Registration Time
      *
      * @return const steady_clock::time_point
      */
     virtual const steady_clock::time_point getRegistrationTime(void) const noexcept = 0;
 
     /**
-     * @brief technical part of the disconnection process.
-     * effectivelly disconnect must be called by disconnect
+     * @brief low-level part of disconnection process
      *
      */
     virtual void disconnectBase(void) noexcept = 0;
 
     /**
-     * @brief technical send method that effectively send the data (async)
+     * @brief asynchronously send data (low-level)
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
+     * @param data to send
+     * @param dataSize to send
      *
      * @throw NotConnectedException
-     * @throw SendBufferFullException
+     * @throw SendBufferFullException                                               // devrait etre overflowException?
      */
     virtual void sendBase(const uint8_t *data, const size_t dataSize) = 0;
 
     /**
-     * @brief technical directSend method that effectively send the data (sync)
+     * @brief synchronously send data (low-level)
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param dataSize to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of retries when socket would block
      *
      * @throw NotConnectedException
      */
@@ -470,67 +466,68 @@ template <class _TNetwork> class IClient
                                 ssize_t retry = 10) = 0;
 
     /**
-     * @brief clear a part of sender buffer
+     * @brief clear part of sender buffer
      *
-     * @param dataSize the size of the data to clear from buffer
-     * @return size_t the size of the remaining data in the buffer
+     * @param dataSize size of data to clear from buffer
+     * @return size_t remaining data size
      */
     virtual size_t shiftBuffer(size_t dataSize) noexcept = 0;
 
     private:
     /**
-     * @brief technical callback calledby network when auto read flag is false and a new message is received
-     * define flags then call the higher level callback onNewMessageToRead
+     * @brief low-level callback triggered by network when auto-read flag is false and new message is received
+     * updates internal state then calls higher-level onNewMessageToRead()
      *
      */
     virtual void onNewMessageToReadBase(void) noexcept = 0;
 
     /**
-     * @brief technical callback called just after a connection.
-     * define the socket bound to the connection
-     * then call the higher level callback onConnect
+     * @brief low-level callback triggered upon connection
+     * stores socket bound to connection then calls higher-level onConnect()
      *
      * @param fd socket of connection
      */
     virtual void onConnectBase(const fd_t fd) noexcept = 0;
 
     /**
-     * @brief technical callback called just after connection atempt timed out
-     * define flags then call the higher level callback onConnectTimedOut
+     * @brief low-level callback triggered upon connection timeout
+     * updates internal state then calls higher-level onConnectTimedOut()
      *
      */
     virtual void onConnectTimedOutBase(void) noexcept = 0;
 
     /**
-     * @brief technical callback called just after connection atempt failed
-     * define flags then call the higher level callback onConnectFailed
+     * @brief low-level callback triggered upon failed connection attempt
+     * updates internal state then calls higher-level onConnectFailed()
      *
      */
     virtual void onConnectFailedBase(void) noexcept = 0;
 
     /**
-     * @brief technical callback called just after connection has been lost
-     * define flags then call the higher level callback onConnectionLost
+     * @brief low-level callback triggered upon lost connection
+     * updates internal state then calls higher-level onConnectionLost()
      *
      */
     virtual void onConnectionLostBase(void) noexcept = 0;
 
     /**
-     * @brief technical callback called (if [AutoRead flag] is true) just after new data have been received
-     * send the data to the receiver
+     * @brief low-level callback triggered upon new data received (if AutoRead flag is true)
+     * then sends data to receiver
      *
-     * @param data the data received
-     * @param dataSize the size of the data received
+     * @param data received
+     * @param dataSize received
      */
     virtual void onDataReceivedBase(const uint8_t *data, size_t dataSize) noexcept = 0;
 
     /**
-     * @brief technical callback called just after the disconnection
-     * define flags then call the higher level callback onDisconnect
+     * @brief low-level callback triggered upon disconnection
+     * updates internal state then calls higher-level onDisconnect()
      *
      */
     virtual void onDisconnectBase(void) noexcept = 0;
 };
 } // namespace tcp
+
 } // namespace connector
+
 } // namespace tredzone

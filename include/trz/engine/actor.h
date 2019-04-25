@@ -21,7 +21,7 @@
 #include "trz/engine/internal/stringstream.h"
 #include "trz/engine/internal/thread.h"
 #include "trz/engine/internal/RefMapper.h"
-#include "trz/util/enterprise.h"
+#include "trz/pattern/enterprise.h"
 
 
 
@@ -1010,22 +1010,25 @@ public:
              * @param pnodeId initialization value for nodeId member.
              * @param pnodeConnectionId initialization value for nodeConnectionId member.
              */
-            inline RouteIdComparable(NodeId pnodeId, NodeConnectionId pnodeConnectionId) noexcept
+            RouteIdComparable(NodeId pnodeId, NodeConnectionId pnodeConnectionId) noexcept
                 : nodeId(pnodeId),
                   nodeConnectionId(pnodeConnectionId)
             {
             }
-            /**
-             * @brief Assign operator with another route-id.
-             * @param other another route-id.
-             * @return A reference to this instance.
-             */
-            inline RouteIdComparable &operator=(const RouteIdComparable &other) noexcept
+            
+            RouteIdComparable &operator=(const RouteIdComparable &other) noexcept
             {
                 nodeId = other.nodeId;
                 nodeConnectionId = other.nodeConnectionId;
                 return *this;
             }
+            
+            // (copy ctor)
+            RouteIdComparable(const RouteIdComparable &other) noexcept
+                : nodeId(other.nodeId), nodeConnectionId(other.nodeConnectionId)
+            {
+            }
+            
             /**
              * @brief Assign operator to null. Which invalidates route-id.
              * @param tredzone::null represents the invalid value of route-id.
@@ -1113,36 +1116,40 @@ public:
          */
         class RouteId : public RouteIdComparable
         {
-          public:
+        public:
+        
             typedef RouteIdComparable::NodeConnectionId NodeConnectionId;
 
             /**
              * @brief Default constructor. Initializes this route-id to invalid.
              */
             inline RouteId() noexcept {}
-            /**
-             * @brief Assign operator with another route-id.
-             * @param other another route-id.
-             * @return A reference to this instance.
-             */
-            inline RouteId &operator=(const RouteId &other) noexcept
+            
+            RouteId &operator=(const RouteId &other) noexcept
             {
                 RouteIdComparable::operator=(other);
                 nodeConnection = other.nodeConnection;
                 return *this;
             }
+            
+            RouteId(const RouteId &other) noexcept
+                : RouteIdComparable(other), nodeConnection(other.nodeConnection)
+            {
+            }
+            
             /**
              * @brief Assign operator to null. Which invalidates route-id.
              * @param tredzone::null represents the invalid value of route-id.
              * @return A reference to this instance.
              */
-            inline RouteId &operator=(const Null &null) noexcept
+            RouteId &operator=(const Null &null) noexcept
             {
                 RouteIdComparable::operator=(null);
                 return *this;
             }
 
-          private:
+        private:
+          
             friend class Actor;
             friend class AsyncNodesHandle;
             friend class EngineToEngineConnector;
@@ -1499,7 +1506,7 @@ public:
      * This method causes the event-loop (cpu-core) running this actor
      * to call onCallback() <b>once</b> on the next loop iteration.
      * Calling this method multiple times will always produce the same
-     * effect as calling it a single time.
+     * effect as calling it a single time.
      * @note _Callback does not need to be of polymorphic (virtual) type.
      * @param callbackHandler instance of _Callback implementing the onCallback() method.
      */
@@ -1836,8 +1843,8 @@ public:
     bool isRegisteredHighPriorityEventHandler(EventId) const noexcept;
     bool isRegisteredEventHandler(EventId) const noexcept;
     bool isRegisteredUndeliveredEventHandler(EventId) const noexcept;
-    void registerCallback(void (*onCallback)(Callback &) noexcept, Callback &) noexcept;
-    void registerPerformanceNeutralCallback(void (*onCallback)(Callback &) noexcept, Callback &) noexcept;
+    void registerCallback(void (*onCallback)(Callback &) /*noexcept*/, Callback &) noexcept;
+    void registerPerformanceNeutralCallback(void (*onCallback)(Callback &) /*noexcept*/, Callback &) noexcept;
     Actor *getSingletonActor(SingletonActorIndex) noexcept;
     void reserveSingletonActor(SingletonActorIndex); // throw (CircularReferenceException)
     void setSingletonActor(SingletonActorIndex, Actor &) noexcept;
@@ -2254,8 +2261,7 @@ private:
     friend std::ostream &operator<<(std::ostream &, const Actor::Event::OStreamContent &);
 
     typedef void (*EventToOStreamFunction)(std::ostream &, const Event &);
-    typedef bool (*EventIsE2ECapableFunction)(const char *&, EventE2ESerializeFunction &,
-                                              EventE2EDeserializeFunction &);
+    typedef bool (*EventIsE2ECapableFunction)(const char *&, EventE2ESerializeFunction &, EventE2EDeserializeFunction &);
     struct RetainedEventId
     {
         const EventId eventId;

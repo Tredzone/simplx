@@ -43,9 +43,9 @@ using ::std::chrono::steady_clock;
 using fd_t = int64_t;
 
 /**
- * @brief communication class to communicate through a network.
+ * @brief class communicating with network 
  *
- * @tparam _TNetwork the network actor that manages the connection and communication to the network (low level)
+ * @tparam _TNetwork network actor managing network low-level connection and communication
  * @tparam _SendBufferSize
  * @tparam _ReceiveBufferSize
  */
@@ -56,7 +56,7 @@ class TcpClient : public Actor, public IClient<_TNetwork>
 
     public:
     /**
-     * @brief event to ask the destruction of a client
+     * @brief client destruction request
      *
      */
     class DestroyRequestEvent : public Actor::Event
@@ -64,7 +64,7 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     };
 
     /**
-     * @brief event to notify of an incoming destruction of the client
+     * @brief incoming client destruction notification
      *
      */
     class DestroyNotificationEvent : public Actor::Event
@@ -72,7 +72,7 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     };
 
     /**
-     * @brief event to be added to the list of actor notified of the destruction
+     * @brief request client destruction notification
      *
      */
     class RegisterNotificationEvent : public Actor::Event
@@ -80,8 +80,8 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     };
 
     /**
-     * @brief Construct a new Tcp Client
-     * if no _TNetwork exist on this core, instanciate it
+     * @brief instantiate new tcp client
+     * if no _TNetwork exists on this core, instanciate it
      *
      * @throw _TNetwork::EpollCreateException
      */
@@ -94,9 +94,9 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief callback called when the client is asked to destroy itself
+     * @brief callback triggered when client is asked to destroy itself
      *
-     * @param e the destroy request event
+     * @param e destroy request event
      */
     void onEvent(const DestroyRequestEvent &e)
     {
@@ -105,10 +105,10 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief Set the socket for this client
-     * used when this client is spawned by server
+     * @brief Set client socket 
+     * used when client is spawned by server
      *
-     * @param fd the socket
+     * @param fd socket
      */
     void setFd(fd_t fd)
     {
@@ -118,21 +118,21 @@ class TcpClient : public Actor, public IClient<_TNetwork>
 
     /**
      * @brief subscribe to destruction notification
-     * used when this client is spawned by server
+     * used when client is spawned by server
      *
-     * @param id the actor id to send the destroy notification to
+     * @param id actor id to send destruction notification to
      */
     void registerDestroyNotification(const ActorId &id) { m_actorToNotifyOnDestroy.insert(id); }
 
     /**
-     * @brief callback called when the client is asked to register a subscriber to destroy notification
+     * @brief callback triggered when client is asked to register a subscriber to destroy notification
      *
-     * @param e the register request event containing the actor id of the subscriber
+     * @param e subscriber actor id
      */
     void onEvent(const RegisterNotificationEvent &e) { registerDestroyNotification(e.getSourceActorId()); }
 
     /**
-     * @brief callback called when the actor is requested to destroy itself
+     * @brief callback triggered by engine to  requested actor destruction
      *
      */
     void onDestroyRequest(void) noexcept override
@@ -147,12 +147,12 @@ class TcpClient : public Actor, public IClient<_TNetwork>
      * @brief register this client to be connected
      * calls setConnectionParam then register connect
      *
-     * @param ipAddress the ip to connect to
-     * @param addressFamily ip address type AF_INET(IPv4) - AF_INET6(IPv6)
-     * @param port the port to connect to
-     * @param timeoutUSec the delay in microSecond before timeout the connection process
-     * @param messageHeaderSize the minimum size of the header (0 means no header)
-     * @param ipAddressSource the adress of the interface to use to connect from ( *.*.*.* for any)
+     * @param ipAddress ip to connect to
+     * @param addressFamily ip address type AF_INET(IPv4), AF_INET6(IPv6)
+     * @param port to connect to
+     * @param timeoutUSec delay in microseconds before connection process timeout
+     * @param messageHeaderSize minimum header size (0 for no header)
+     * @param ipAddressSource adress of network interface to connect from ( *.*.*.* for any)
      */
     void registerConnect(const string &ipAddress, int64_t addressFamily, uint64_t port, uint64_t timeoutUSec,
                          size_t messageHeaderSize, const string &ipAddressSource = string()) override
@@ -162,14 +162,14 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief Set the Connection Parameters object
+     * @brief Set connection parameters
      *
-     * @param ipAddress the ip to connect to
-     * @param addressFamily ip address type AF_INET(IPv4) - AF_INET6(IPv6)
-     * @param port the port to connect to
-     * @param timeoutUSec the delay in microSecond before timeout the connection process
-     * @param messageHeaderSize the minimum size of the header (0 means no header)
-     * @param ipAddressSource the adress of the interface to use to connect from ( *.*.*.* for any)
+     * @param ipAddress ip to connect to
+     * @param addressFamily ip address type AF_INET(IPv4), AF_INET6(IPv6)
+     * @param port to connect to
+     * @param timeoutUSec delay in microseconds before connection process timeout
+     * @param messageHeaderSize minimum header size (0 for no header)
+     * @param ipAddressSource adress of network interface to connect from ( *.*.*.* for any)
      *
      * @throw AlreadyConnectedException
      */
@@ -189,7 +189,7 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief Get the Connect Parameters object
+     * @brief Get connection parameters
      *
      * @return const ConnectParam&
      */
@@ -200,8 +200,8 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief register this client to be connected
-     * the connection will use the parameters set using setConnectParam
+     * @brief register client to be connected
+     * connection will use parameters set using setConnectParam
      *
      * @throw AlreadyConnectedException
      */
@@ -220,37 +220,37 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief hight level method closing the connection.
+     * @brief close connection (high-level method)
      *
      */
     virtual void disconnect(void) noexcept override
     {
-        // Calls disconnectBase to effectively disconnect
+        // calls (low-level) disconnectBase to actually disconnect
         disconnectBase();
     }
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * wrapper method for type conversion of parameters
+     * @brief add data to send buffer and queue this buffer to be sent asynchronously by network,
+     * parameters type conversion method
      *
-     * @param data the data to send
+     * @param data to send
      */
     void send(const uint8_t data) override { return send(&data, 1); }
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * wrapper method for type conversion of parameters
+     * @brief add data to send buffer and queue this buffer to be sent asynchronously by network,
+     * parameters type conversion method
      *
-     * @param data the data to send
+     * @param data to send
      */
     void send(const string &data) override { return send(data.c_str(), data.size()); }
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * wrapper method for type conversion of parameters
+     * @brief add data to send buffer and queue this buffer to be sent asynchronously by network,
+     * parameters type conversion method
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
+     * @param data to send
+     * @param dataSize size of data to send
      */
     void send(const char *data, const size_t dataSize) override
     {
@@ -258,34 +258,34 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief add data to the send buffer and register (async) this buffer to be sent by network
-     * calls sendBase to effectively send the data
+     * @brief add data to send buffer and queue this buffer to be sent asynchronously by network,
+     * calls sendBase to actually send data
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
+     * @param data to send
+     * @param dataSize size of data to send
      */
     void send(const uint8_t *data, const size_t dataSize) override { sendBase(data, dataSize); }
 
     /**
-     * @brief directly send data (sync) through the network
-     * wrapper method for type conversion of parameters
+     * @brief synchronously send data to network layer,
+     * parameters type conversion method
      *
-     * @param data the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param blocking flag, if true use a nonblocking send
+     * @param retry number of try to send when socket would block
      */
     void directSend(const uint8_t data, bool blocking = false, ssize_t retry = 10) override
     {
         return directSend(&data, 1, blocking, retry);
     }
 
-    /**
-     * @brief directly send data (sync) through the network
-     * wrapper method for type conversion of parameters
+    /**     
+     * @brief synchronously send data to network layer,
+     * parameters type conversion method
      *
-     * @param data the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of send retries when socket would block
      */
     void directSend(const string &data, bool blocking = false, ssize_t retry = 10) override
     {
@@ -293,13 +293,13 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief directly send data (sync) through the network
-     * wrapper method for type conversion of parameters
+     * @brief synchronously send data to network layer,
+     * parameters type conversion method
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param dataSize size of data to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of send retries when socket would block
      */
     void directSend(const char *data, const size_t dataSize, bool blocking = false, ssize_t retry = 10) override
     {
@@ -307,13 +307,13 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief directly send data (sync) through the network
-     * calls directSendBase to effectively send the data
+     * @brief synchronously send data to network layer,
+     * calls (low-level) directSendBase to actually send data
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param dataSize size of data to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of send retries when socket would block
      */
     void directSend(const uint8_t *data, const size_t dataSize, bool blocking = false, ssize_t retry = 10) override
     {
@@ -321,46 +321,46 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief Get the Sender Buffer Content Size
+     * @brief Get Sender Buffer Content Size
      *
-     * @return size_t size of the buffer content
+     * @return size_t size of buffer content
      */
     size_t getSenderBufferContentSize(void) const noexcept override { return m_sender.getBufferContentSize(); }
 
     /**
-     * @brief Get the Receiver Buffer Content Size
+     * @brief Get Receiver Buffer Content Size
      *
-     * @return size_t size of the buffer content
+     * @return size_t size of buffer content
      */
     size_t getReceiverBufferContentSize(void) const noexcept override { return m_receiver.getBufferContentSize(); }
 
     /**
-     * @brief empty the sender buffer
+     * @brief flush sender buffer
      *
      */
     void clearSenderBuffer(void) noexcept override { m_sender.clearBuffer(); }
 
     /**
-     * @brief empty the receiver buffer
+     * @brief flush receiver buffer
      *
      */
     void clearReceiverBuffer(void) noexcept override { m_receiver.clearBuffer(); }
 
     /**
-     * @brief Get the Fd object
+     * @brief Get Fd
      *
-     * @return fd_t the socket ascociated to this client
+     * @return fd_t socket ascociated to this client
      */
     fd_t getFd(void) const noexcept override { return m_fd; }
 
     /**
-     * @brief register object to self destroy
+     * @brief register client automatic-destruction
      *
      */
     void destroy(void) noexcept override { selfDestroy(); }
 
     /**
-     * @brief check if a new message is available in the buffer
+     * @brief is any new message available in network buffer?
      *
      * @return true message is available
      * @return false no message is available
@@ -368,10 +368,10 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     bool isNewMessageToRead(void) const noexcept override { return m_messageToReadFlag; }
 
     /**
-     * @brief if a message is available,
-     * read the socket through the network until no message are available or limit is reached
+     * @brief if message is available in network buffer,
+     * read network socket until retrieved all available data or limit is reached
      *
-     * @param limit maximum number of read to process
+     * @param limit maximum number of read operations
      */
     void readSocket(size_t limit) noexcept override
     {
@@ -383,24 +383,24 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief Get the Auto Read flag
+     * @brief Get Auto-Read flag
      *
-     * @return true network automaticaly read new message then callback onDataReceived
-     * @return false network just set the flag MessageToRead then run the callback onNewMessageToReadBase
+     * @return true : network automatically reads new messages then triggers onDataReceived callback
+     * @return false : network just sets MessageToRead flag then triggers onNewMessageToReadBase callback
      */
     bool getAutoReadFlag(void) const noexcept override { return m_autoreadFlag; }
 
     /**
-     * @brief Set the Auto Read flag
-     * true: network automaticaly read new message then callback onDataReceived
-     * false: network just set the flag MessageToRead then run the callback onNewMessageToReadBase
+     * @brief Set Auto Read flag
+     * @param autoread true : network automatically reads new messages then triggers onDataReceived callback
+     * false : network just sets MessageToRead flag then triggers onNewMessageToReadBase callback
      *
      * @param autoread flag value
      */
     void setAutoRead(const bool autoread) noexcept override { m_autoreadFlag = autoread; }
 
     /**
-     * @brief Set the Message Header Size
+     * @brief Set Message Header Size
      *
      * @param messageHeaderSize
      */
@@ -411,16 +411,16 @@ class TcpClient : public Actor, public IClient<_TNetwork>
 
     protected:
     /**
-     * @brief callback called when auto read flag is false and a new message is received
+     * @brief callback triggered when auto-read flag is false and new message is received
      *
      */
     virtual void onNewMessageToRead(void) noexcept override {}
 
     /**
-     * @brief Get the Header Size
+     * @brief Get Header Size
      *
-     * @param data the data received
-     * @return size_t the current Header Size
+     * @param data received
+     * @return size_t current Header Size
      */
     virtual size_t getHeaderSize(const uint8_t *data) noexcept override
     {
@@ -429,11 +429,11 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief Get the Data Size using the header
+     * @brief Retrieve data size
      *
-     * @param data the data received
-     * @param currentHeaderSize the current Header Size
-     * @return uint64_t the data Size
+     * @param data received
+     * @param currentHeaderSize current Header Size
+     * @return uint64_t data Size
      */
     virtual uint64_t getDataSize(const uint8_t *data, size_t currentHeaderSize) noexcept override
     {
@@ -443,40 +443,40 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief callback called after a connection failed
+     * @brief callback triggered after failed connection
      *
      */
     virtual void onConnectFailed(void) noexcept override {}
 
     /**
-     * @brief callback called after the connection atempt reached timeout
+     * @brief callback triggered after connection timeout reached 
      *
      */
     virtual void onConnectTimedOut(void) noexcept override {}
 
     /**
-     * @brief callback called when the connection has been lost
+     * @brief callback triggered on lost connection
      *
      */
     virtual void onConnectionLost(void) noexcept override {}
 
     /**
-     * @brief callback called after a successful connection
+     * @brief callback triggered after connection success
      *
      */
     virtual void onConnect(void) noexcept override {}
 
     /**
-     * @brief callback called after a disconnection
+     * @brief callback triggered after disconnection
      *
      */
     virtual void onDisconnect(void) noexcept override {}
 
     /**
-     * @brief callback called after a completed data (according to header) is received
+     * @brief callback triggered after complete data (according to header) received
      *
-     * @param data the data received
-     * @param dataSize the size of the data
+     * @param data received
+     * @param dataSize size of data
      */
     virtual void onDataReceived(const uint8_t *data, size_t dataSize) noexcept override
     {
@@ -485,13 +485,13 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief callback called after a data is received but its size (according to header) is bigger than the receiver
-     * buffer this method will be called for each data received until the all "to big data" has been received so the
-     * client has to manage the buffering. then the next header is read and if the next data fit the buffer size
-     * onDataReceived is used
+     * @brief callback triggered after data is received but its size (according to header) would overflow receiver buffer. 
+     * Method will be called for each data chunk received until entire payload has been received. Hence, 
+     * buffering must be managed by client itself. 
+     * Next header will be processed normally.
      *
-     * @param data the (probably partial) data received
-     * @param dataSize the (probably partial) data size
+     * @param data received (probably partial)
+     * @param dataSize (probably partial)
      */
     virtual void onOverflowDataReceived(const uint8_t *data, size_t dataSize) noexcept override
     {
@@ -500,21 +500,21 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief Get the Data To Send (sender buffer)
+     * @brief Get Data To Send (sender buffer)
      *
-     * @return tuple<const uint8_t *, size_t> the buffer as a tuple of data pointer and the size of the data
+     * @return tuple<const uint8_t *, size_t> buffer as a tuple data pointer and size
      */
     tuple<const uint8_t *, size_t> getDataToSend(void) noexcept override { return m_sender.getDataToSend(); }
 
     /**
-     * @brief Get the connection Timeout
+     * @brief Get connection Timeout
      *
-     * @return const microseconds& the timeout
+     * @return const microseconds& timeout
      */
     const microseconds &getTimeout(void) const noexcept override { return m_timeout; }
 
     /**
-     * @brief Get the Registration Time
+     * @brief Get Registration Time
      *
      * @return const steady_clock::time_point
      */
@@ -528,8 +528,8 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     };
 
     /**
-     * @brief technical part of the disconnection process.
-     * effectivelly disconnect must be called by disconnect
+     * @brief disconnection process low-level part
+     * actually disconnects the socket
      *
      */
     void disconnectBase(void) noexcept override final
@@ -546,10 +546,10 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical send method that effectively send the data (async)
+     * @brief low-level, asynchronously send data
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
+     * @param data to send
+     * @param dataSize to send
      *
      * @throw NotConnectedException
      * @throw SendBufferFullException
@@ -570,12 +570,12 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical directSend method that effectively send the data (sync)
+     * @brief low-level directSend method that actually send data (sync)
      *
-     * @param data the data to send
-     * @param dataSize the size of the data to send
-     * @param blocking if true use a nonblocking send
-     * @param retry number of try to send when the socket would block
+     * @param data to send
+     * @param dataSize to send
+     * @param blocking flag, if false use a nonblocking send
+     * @param retry number of try to send when socket would block
      *
      * @throw NotConnectedException
      */
@@ -592,7 +592,7 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief disconnect the socket
+     * @brief disconnect socket
      * register to destruction at next callback
      * send notification at all actors subscribed
      * request to destroy
@@ -613,10 +613,10 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief clear a part of sender buffer
+     * @brief clear part of sender buffer
      *
-     * @param dataSize the size of the data to clear from buffer
-     * @return size_t the size of the remaining data in the buffer
+     * @param dataSize size of data to clear from buffer
+     * @return size_t size of remaining data in buffer
      */
     size_t shiftBuffer(size_t dataSize) noexcept override final
     {
@@ -626,10 +626,10 @@ class TcpClient : public Actor, public IClient<_TNetwork>
         return dataSizeStillInBuffer;
     }
 
-    private:
+private:
     /**
-     * @brief technical callback called by network when auto read flag is false and a new message is received
-     * define flags then call the higher level callback onNewMessageToRead
+     * @brief low-level callback triggered by network when auto-read flag is false and a new message is received
+     * updates internal state then calls higher-level-callback onNewMessageToRead
      *
      */
     void onNewMessageToReadBase(void) noexcept override final
@@ -639,11 +639,10 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical callback called just after a connection.
-     * define the socket bound to the connection
-     * then call the higher level callback onConnect
+     * @brief low-level callback triggered upon connection
+     * stores socket bound to connection then calls higher-level onConnect()
      *
-     * @param fd socket of connection
+     * @param fd connection socket
      */
     void onConnectBase(const fd_t fd) noexcept override final
     {
@@ -653,8 +652,8 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical callback called just after connection atempt timed out
-     * define flags then call the higher level callback onConnectTimedOut
+     * @brief low-level callback triggered upon connection timeout
+     * updates internal state then calls higher-level onConnectTimedOut()
      *
      */
     void onConnectTimedOutBase(void) noexcept override final
@@ -666,8 +665,8 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical callback called just after connection atempt failed
-     * define flags then call the higher level callback onConnectFailed
+     * @brief low-level callback triggered upon failed connection attempt
+     * calls (high-level) onConnectFailed
      *
      */
     void onConnectFailedBase(void) noexcept override final
@@ -679,8 +678,8 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical callback called just after connection has been lost
-     * define flags then call the higher level callback onConnectionLost
+     * @brief low-level callback triggered upon lost connection
+     * calls (high-level) onConnectionLost
      *
      */
     void onConnectionLostBase(void) noexcept override final
@@ -691,8 +690,8 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical callback called just after the disconnection
-     * define flags then call the higher level callback onDisconnect
+     * @brief low-level callback triggered upon disconnection
+     * calls (high-level) onDisconnect
      *
      */
     void onDisconnectBase(void) noexcept override final
@@ -703,11 +702,11 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     }
 
     /**
-     * @brief technical callback called (if [AutoRead flag] is true) just after new data have been received
-     * send the data to the receiver
+     * @brief low-level callback triggered (if [AutoRead flag] is true) upon new data received
+     * send data to receiver 
      *
-     * @param data the data received
-     * @param dataSize the size of the data received
+     * @param data received
+     * @param dataSize size of data received
      */
     void onDataReceivedBase(const uint8_t *data, size_t dataSize) noexcept override final
     {
@@ -739,5 +738,7 @@ class TcpClient : public Actor, public IClient<_TNetwork>
     static constexpr int64_t FD_DISCONNECTED = -1;
 };
 } // namespace tcp
+
 } // namespace connector
+
 } // namespace tredzone

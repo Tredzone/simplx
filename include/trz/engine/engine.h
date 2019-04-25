@@ -304,7 +304,7 @@ public:
 };
 
 /**
- * @brief Tredzone runtime engine.
+ * @brief runtime engine.
  *
  * The Engine manages the Actor's life cycle, event distribution, callback...
  */
@@ -438,7 +438,7 @@ public:
     };
 
     /**
-     * @brief Tredzone Service Actor registry.
+     * @brief Service Actor registry.
      * Any Actor can be declared as a Service from the StartSequence using the addService() method.
      * This Actor is identified by a service-tag.
      * Any Actor during runtime can ask the ServiceIndex for the ActorId corresponding to a given service-tag.

@@ -29,7 +29,7 @@ using ::std::string;
 using ::std::tuple;
 
 /**
- * @brief a circular buffer class to store data as uint8_t
+ * @brief circular buffer class storing data as uint8_t
  * 
  * @tparam _Capacity 
  */
@@ -37,7 +37,7 @@ template <size_t _Capacity> class CircularBuffer
 {
     public:
     /**
-     * @brief Construct a new Circular Buffer
+     * @brief Constructor
      * 
      */
     CircularBuffer(void) noexcept : m_buffer(), m_readBuffer() 
@@ -47,42 +47,41 @@ template <size_t _Capacity> class CircularBuffer
      }
 
     /**
-     * @brief Destroy the Circular Buffer 
+     * @brief Destructor
      * 
      */
     ~CircularBuffer() {}
 
     /**
-     * @brief get the size of the buffer content
+     * @brief get buffer content size
      * 
      * @return size_t 
      */
     size_t size(void) const noexcept { return m_contentSize; }
 
     /**
-     * @brief get the max size of the buffer
+     * @brief get buffer capacity
      * 
      * @return size_t max size
      */
     size_t max_size(void) const noexcept { return _Capacity; }
 
     /**
-     * @brief get the available space in buffer
+     * @brief get available buffer space
      * 
      * @return size_t available space
      */
     size_t availableSpace(void) const noexcept { return m_freeSpace; }
 
     /**
-     * @brief Get if the buffer Is Empty
+     * @brief  Is buffer empty?
      * 
-     * @return true yes
-     * @return false no
+     * @return boolean
      */
     bool isEmpty(void) const noexcept { return m_emptyFlag; }
 
     /**
-     * @brief debug method to get a buffer content representation and some debug info as a string
+     * @brief debug method to get internal buffer representation incl. some debug info
      * 
      * @return string 
      */
@@ -130,19 +129,19 @@ template <size_t _Capacity> class CircularBuffer
     }
 
     /**
-     * @brief write in buffer
+     * @brief write to buffer
      * 
-     * @param data data to write
-     * @param size data size
-     * @return true data written
-     * @return false nothing written
+     * @param data to write
+     * @param size
+     * @return true data was written
+     * @return false nothing was written
      */
     bool writeData(const uint8_t *data, size_t size) noexcept
     {
         if (m_freeSpace < size || size < 1)
             return false;
 
-        // aligned section: writer to reader
+        // contiguous data chunk: write from writer index to reader index
         if (m_readerIndex > m_writerIndex)
         {
             // [#W_______R#####]
@@ -154,8 +153,8 @@ template <size_t _Capacity> class CircularBuffer
             assert(m_writerIndex < _Capacity);
             // [#####W___R#####]
         }
-
-        // aligned section: writer to end
+        
+        // contiguous data chunk: write from writer index to end index
         else
         {
             // [___R####W_____]
@@ -176,7 +175,7 @@ template <size_t _Capacity> class CircularBuffer
             }
             // [___R#######W__]
 
-            // circular section: begin to Reader
+            // wrap-around data chunk: write from start index to reader index
             if (toWriteAtEnd < size)
             {
                 // [___R#########W]
@@ -196,12 +195,10 @@ template <size_t _Capacity> class CircularBuffer
     }
 
     /*
-     * @brief Get the Data in the buffer
-     * if the buffer has changed since last read
-     * copy the data from circular buffer to a contiguous buffer
-     * the return the contiguous buffer 
+     * @brief Get buffer data
+     * if buffer changed since last read, copy data from circular buffer to contiguous buffer
      * 
-     * @return tuple<const uint8_t *, size_t> the buffer as a tuple of data pointer and the size of the data
+     * @return tuple<const uint8_t *, size_t> buffer as pointer & size tuple
      */
     const tuple<uint8_t *, size_t> readData(void) noexcept
     {
@@ -214,10 +211,10 @@ template <size_t _Capacity> class CircularBuffer
     }
 
     /**
-     * @brief remove data
-     * move the read pointer in the circular buffer and set sizes
+     * @brief front-pop data
+     * adjust read pointer & size of circular buffer
      * 
-     * @param size the size of data to remove
+     * @param size of removed data
      */
     void shiftBuffer(const size_t size) noexcept
     {
@@ -232,7 +229,7 @@ template <size_t _Capacity> class CircularBuffer
 
         if (m_readerIndex < m_writerIndex)
         {
-            // aligned section: reader -> writer
+            // contiguous section: reader -> writer
             assert(size <= m_writerIndex);
 
             memset(&m_buffer[0], 0, size);
@@ -244,7 +241,7 @@ template <size_t _Capacity> class CircularBuffer
 
         else
         {
-            // aligned section: reader -> end
+            // contiguous section: reader -> end
             const size_t spaceAtEnd  = _Capacity - m_readerIndex;
             const size_t toReadAtEnd = min(size, spaceAtEnd);
             memset(&m_buffer[m_readerIndex], 0, toReadAtEnd);
@@ -273,8 +270,8 @@ template <size_t _Capacity> class CircularBuffer
     }
 
     /**
-     * @brief empty the buffer
-     * move the read and write cursor to begining and set sizes
+     * @brief flush buffer
+     * reset read/write cursors & sizes
      * 
      */
     void clear(void) noexcept
@@ -291,7 +288,7 @@ template <size_t _Capacity> class CircularBuffer
 
     private:
     /**
-     * @brief copy data from the buffer to a contiguous buffer
+     * @brief copy data to contiguous read buffer
      * 
      * @param data 
      */
@@ -300,12 +297,12 @@ template <size_t _Capacity> class CircularBuffer
         if (m_emptyFlag)
             return;
         size_t size = m_contentSize;
-        // aligned section
+        // contiguous chunk
         if (m_readerIndex < m_writerIndex)
             memcpy(data, &m_buffer[m_readerIndex], size);
         else
         {
-            // aligned section
+            // contiguous chunk
             assert(m_readerIndex >= 0);
             assert(m_readerIndex <= _Capacity);
             const size_t spaceAtEnd  = _Capacity - m_readerIndex;
@@ -313,7 +310,7 @@ template <size_t _Capacity> class CircularBuffer
             memcpy(data, &m_buffer[m_readerIndex], toReadAtEnd);
             if (toReadAtEnd != size)
             {
-                // circular section
+                // circular chunk
                 const size_t toReadAtBegin = size - toReadAtEnd;
                 memcpy(data + toReadAtEnd, &m_buffer[0], toReadAtBegin);
             }
@@ -332,5 +329,7 @@ template <size_t _Capacity> class CircularBuffer
     bool     m_newDataFlag = false;
 };
 } // namespace tcp
+
 } // namespace connector
+
 } // namespace tredzone

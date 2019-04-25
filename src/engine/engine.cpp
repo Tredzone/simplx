@@ -370,7 +370,9 @@ private:
     }
 };
 
+// static
 Mutex Engine::ServiceIndex::mutex;
+
 unsigned Engine::ServiceIndex::staticIndexValue = 0;
 
 Engine::Engine(const StartSequence &startSequence)
@@ -432,16 +434,7 @@ std::string Engine::getVersion()
     {
         ss << '.' << (int)TREDZONE_ENGINE_VERSION_PATCH;
     }
-    ss << " (";
-    if (strcmp("master", TREDZONE_ENGINE_VERSION_BRANCH) == 0)
-    {
-        ss << TREDZONE_ENGINE_VERSION_BRANCH;
-    }
-    else
-    {
-        ss << "dev-" << TREDZONE_ENGINE_VERSION_BRANCH;
-    }
-    ss << ") "
+    ss << " " 
 #ifndef NDEBUG
        << "debug "
 #else

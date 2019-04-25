@@ -26,13 +26,16 @@ Actor::EventId Actor::Event::retainEventId(EventToOStreamFunction peventNameToOS
     assert(std::numeric_limits<EventId>::max() >= MAX_EVENT_ID_COUNT);
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
     EventId eventId = 0;
+    
+    // look for unused e2e event ID?
     for (; eventId < AsyncNodeBase::s_StaticShared.eventIdBitSet.size() &&
            AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId];
          ++eventId)
     {
     }
+    
     if (eventId == AsyncNodeBase::s_StaticShared.eventIdBitSet.size())
-    {
+    {   // impossible, will never get triggered? [PL]
         throw UndersizedException(UndersizedException::EVENT_ID);
     }
 
@@ -55,7 +58,7 @@ Actor::EventId Actor::Event::retainEventId(EventToOStreamFunction peventNameToOS
 
 /*
     m_AbsoluteEventIds maps are shared among all nodes of an engine
-    integer event Ids may be recycled?
+    integer event Ids may be recycled!
 */
 
 void Actor::Event::releaseEventId(EventId eventId) noexcept
@@ -69,13 +72,15 @@ void Actor::Event::releaseEventId(EventId eventId) noexcept
     EventE2EDeserializeFunction eventE2EDeserializeFunction;
     const char                  *eventE2EAbsoluteId;
     
-    if (AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](eventE2EAbsoluteId, eventE2ESerializeFunction, eventE2EDeserializeFunction))
-    {
+    // is E2E-enabled event?
+    if (AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId](eventE2EAbsoluteId/*&*/, eventE2ESerializeFunction/*&*/, eventE2EDeserializeFunction/*&*/))
+    {   
+        // yes, clear absolute event ID
         assert(AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.findEventId(eventE2EAbsoluteId).second == eventId);
         AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.removeEventId(eventId);
     }
 
-    AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId] = false;
+    AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId] = false;           // recycle!
     AsyncNodeBase::s_StaticShared.eventToStreamFunctions[eventId].eventNameToOStreamFunction = 0;
     AsyncNodeBase::s_StaticShared.eventToStreamFunctions[eventId].eventContentToOStreamFunction = 0;
     AsyncNodeBase::s_StaticShared.eventIsE2ECapableFunction[eventId] = 0;
@@ -84,7 +89,7 @@ void Actor::Event::releaseEventId(EventId eventId) noexcept
 // static
 pair<bool, Actor::EventId> Actor::Event::findEventId(const char *absoluteEventId) noexcept
 {
-    // mutex cause is STATIC [PL]
+    // mutex because is STATIC [PL]
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
     
     return AsyncNodeBase::s_StaticShared.m_AbsoluteEventIds.findEventId(absoluteEventId);
@@ -104,6 +109,7 @@ bool Actor::Event::isE2ECapable(EventId eventId, const char *&absoluteEventId,
                                      EventE2ESerializeFunction &serializeFn, EventE2EDeserializeFunction &deserializeFn)
 {
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
+    
     assert(eventId < AsyncNodeBase::s_StaticShared.eventIdBitSet.size());
     if (AsyncNodeBase::s_StaticShared.eventIdBitSet[eventId])
     {
@@ -311,19 +317,24 @@ const Actor::ActorId& Actor::getServiceActorId() const noexcept { return Engine:
 Actor::AllocatorBase Actor::getAllocator() const noexcept { return AllocatorBase(asyncNode->nodeAllocator); }
 
 Actor::SingletonActorIndex Actor::retainSingletonActorIndex()
-{ // throw (std::bad_alloc)
+{
     assert(std::numeric_limits<SingletonActorIndex>::max() >= AsyncNodeBase::StaticShared::SINGLETON_ACTOR_INDEX_SIZE);
+    
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
+    
+    // find 1st non-singleton actor index
     SingletonActorIndex singletonActorIndex = 0;
     for (; singletonActorIndex < AsyncNodeBase::s_StaticShared.singletonActorIndexBitSet.size() &&
            AsyncNodeBase::s_StaticShared.singletonActorIndexBitSet[singletonActorIndex];
          ++singletonActorIndex)
     {
     }
+    
     if (singletonActorIndex == AsyncNodeBase::s_StaticShared.singletonActorIndexBitSet.size())
-    {
+    {   // impossible, will never happen
         throw UndersizedException(UndersizedException::SINGLETON_ACTOR_INDEX);
     }
+    
     AsyncNodeBase::s_StaticShared.singletonActorIndexBitSet[singletonActorIndex] = true;
     return singletonActorIndex;
 }
@@ -331,6 +342,7 @@ Actor::SingletonActorIndex Actor::retainSingletonActorIndex()
 void Actor::releaseSingletonActorIndex(SingletonActorIndex singletonActorIndex) noexcept
 {
     Mutex::Lock lock(AsyncNodeBase::s_StaticShared.mutex);
+    
     assert(singletonActorIndex < AsyncNodeBase::s_StaticShared.singletonActorIndexBitSet.size());
     assert(AsyncNodeBase::s_StaticShared.singletonActorIndexBitSet[singletonActorIndex]);
     AsyncNodeBase::s_StaticShared.singletonActorIndexBitSet[singletonActorIndex] = false;

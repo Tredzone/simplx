@@ -1,3 +1,11 @@
+/**
+ * @author Valerian Vives <valerian.vives@tredzone.com>
+ * @file tcpconnector.hpp
+ * @brief tcp connector top-level header
+ * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
+ * Please see accompanying LICENSE file for licensing terms.
+ */
+
 #pragma once
 
 #include "trz/connector/tcp/client/client.hpp"

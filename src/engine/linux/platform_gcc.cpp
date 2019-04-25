@@ -1,14 +1,23 @@
 /**
  * @file platform_gcc.cpp
- * @brief Linux-specific OS wrapper
+ * @brief gcc-specific OS wrapper
  * @copyright 2013-2019 Tredzone (www.tredzone.com). All rights reserved.
  * Please see accompanying LICENSE file for licensing terms.
  */
 
+#include <iostream>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#include <iomanip>
+#include <cstdio>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <array>
+
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -24,7 +33,7 @@ apt install libc++abi-dev
 
 #include <cxxabi.h>
 
-#include "trz/engine/internal/linux/platform_gcc.h"
+#include "trz/engine/internal/thread.h"
 
 using namespace std;
 
@@ -171,54 +180,6 @@ string tredzone::cppDemangledTypeInfoName(const type_info &typeInfo)
     {
         throw;
     }
-}
-
-// cf: http://linux.die.net/man/3/strerror_r
-
-string tredzone::systemErrorToString(int err)
-{
-    assert(err != 0);
-    char buffer[4096];
-
-#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE
-    // POSIX strerror_r() returns int
-    if (strerror_r(err, buffer, sizeof(buffer)))
-    {
-        return "<internal strerror_r() error>";
-    }
-    
-    const size_t sz = strlen(buffer);
-    if (sz > 0 && buffer[sz - 1] == '\n')
-    {
-        buffer[sz - 1] = '\0';
-    }
-    
-    return buffer;
-
-#else
-    // GNU strerror_r() returns const char*
-    return strerror_r(err, buffer, sizeof(buffer));
-#endif
-}
-
-tredzone::mutex_t tredzone::mutexCreate(bool recursive)
-{
-    int cc;
-    pthread_mutexattr_t attr;
-    if ((cc = pthread_mutexattr_init(&attr)) != 0)
-    {
-        throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
-    }
-    if ((cc = pthread_mutexattr_settype(&attr, recursive ? PTHREAD_MUTEX_RECURSIVE_NP : PTHREAD_MUTEX_FAST_NP)) != 0)
-    {
-        throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
-    }
-    mutex_t ret;
-    if ((cc = pthread_mutex_init(&ret, &attr)) != 0)
-    {
-        throw RunTimeException(__FILE__, __LINE__, systemErrorToString(cc));
-    }
-    return ret;
 }
 
 size_t tredzone::cpuGetCount()
@@ -399,51 +360,17 @@ void tredzone::tlsDestroy(tls_t key)
     }
 }
 
-//---- Soft (non-spurious) String to Int conversion ---------------------------
+//---- Mutex CLASS (not primitive) DTOR ----------------------------------------
 
-int	tredzone::Soft_stoi(const string &s, const int def)
+    tredzone::Mutex::~Mutex() noexcept
 {
-	try
-	{	
-		if (s.empty())	return def;
-		
-		const int	v = ::stoi(s);
-		return v;
-	
-	}
-	catch (std::runtime_error &e)
-	{
-		const char	*what_s = e.what();	// (don't allocate)
-		(void)what_s;
-	}
-	
-	return def;
-}
-
-//----Get Hostname IP address --------------------------------------------------
-
-string  tredzone::GetHostnameIP(const string &name)
-{
-    addrinfo    hints, *res_p;
+#ifndef NDEBUG
+    TREDZONE_TRY
+    assert(!debugIsLocked());
+    mutexDestroy(handle); // throw(tredzone::RunTimeException)
     
-    ::memset(&hints, 0, sizeof(hints));
-    
-    hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
-    hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-    hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-    hints.ai_protocol = 0;          /* Any protocol */
-    hints.ai_canonname = NULL;
-    hints.ai_addr = NULL;
-    hints.ai_next = NULL;
-    
-    const int err = ::getaddrinfo(nullptr/*node*/, name.c_str(), &hints, &res_p);
-    if (err)    return "";          // error
-    
-    const string  res((const char*)res_p->ai_addr);
-    
-    ::freeaddrinfo(res_p);
-
-    return res;
+    TREDZONE_CATCH_AND_EXIT_FAILURE_WITH_CERR_MESSAGE
+#endif
 }
 
 // nada mas

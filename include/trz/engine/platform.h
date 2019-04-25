@@ -66,6 +66,9 @@
     #else
         #error No supported C++ compiler for LINUX
     #endif
+    
+    #include "trz/engine/internal/linux/platform_linux.h"
+    
 #elif defined(TREDZONE_PLATFORM_APPLE)
     #error Apple platform is currently under development!
 #elif defined(TREDZONE_PLATFORM_WINDOWS)

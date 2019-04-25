@@ -199,7 +199,8 @@ class DateTime : public Time
                                  localMinute(0)
     {
     }
-    inline DateTime &operator=(const DateTime &t) noexcept
+    
+    DateTime &operator=(const DateTime &t) noexcept
     {
         Time::operator=(t);
         utcYear = t.utcYear;
@@ -219,6 +220,7 @@ class DateTime : public Time
         localMinute = t.localMinute;
         return *this;
     }
+    
     /**
      * @brief Get utc year expressed in unsigned int year
      * @return year in unsigned 32 bytes

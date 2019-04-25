@@ -24,9 +24,12 @@
 #include "trz/engine/internal/time.h"
 #include "trz/engine/internal/intrinsics.h"
 #include "trz/engine/internal/macro.h"
+
+/*
 #include "trz/engine/internal/dlldecoration.h"
 #include "trz/engine/internal/dlldecorationrestore.h"
 #include "trz/engine/internal/dlldecorationsave.h"
+*/
 
 #if TREDZONE_E2E
     #include "trz/e2e/e2e.h"

@@ -26,8 +26,8 @@ using std::string;
  * /!\ a rootPath folder must be set or a www folder must exist next to the binary
  * otherwise the server can not start (symlink doesen't work)
  *
- * @tparam _TNetwork the network actor that manages the connection and communication to the network (low level)
- * @tparam _TServerProcess the internal client to spawn to communicate with externals client connecting to this server
+ * @tparam _TNetwork network actor managing the connection and communication to network (low level)
+ * @tparam _TServerProcess class than server spawns to communicate with externals client connecting to this server
  */
 template <class _Network, class _HttpServerProcess> class HttpServer : public TcpServer<_Network, _HttpServerProcess>
 {
@@ -54,9 +54,9 @@ template <class _Network, class _HttpServerProcess> class HttpServer : public Tc
     };
 
     /**
-     * @brief Construct a new Http Server
+     * @brief Instantiates a new Http Server
      *
-     * @param param the construction parameters
+     * @param param construction parameters
      */
     HttpServer(const Parameters &param)
         : m_interface(param.m_interface), m_port(param.m_port),
@@ -81,14 +81,14 @@ template <class _Network, class _HttpServerProcess> class HttpServer : public Tc
     }
 
     /**
-     * @brief Destroy the Http Server object
+     * @brief Destroys Http Server object
      *
      */
     virtual ~HttpServer() { free(m_rootPath); }
 
     protected:
     /**
-     * @brief register this service to start listening
+     * @brief registers service to start listening
      *
      */
     virtual void listen()
@@ -99,25 +99,26 @@ template <class _Network, class _HttpServerProcess> class HttpServer : public Tc
     }
 
     /**
-     * @brief callback called after a new client did connect and the connection has been established & handled in an
+     * @brief callback called after new client connected and connection has been established & handled by an
      * actor
      *
-     * @param fd socket of the new communication(used to close the connection)
-     * @param clientIp ip of the client that just connect (used to filter)
-     * @param serverProcessActorId id of the actor handling the communication
+     * @param fd socket of new communication (also used to close said connection)
+     * @param clientIp ip of said connected client. Potentially used for post-connection filtering/processing
+     * @param serverProcessActorId id of actor handling said communication
      */
     virtual void onNewConnection(const fd_t /*fd*/, const char * /*clientIp*/,
                                  const Actor::ActorId & /*serverProcessActorId*/) noexcept override
     {
     }
 
-    private:
+private:
+    
     /**
-     * @brief technical callback called just after a new client as been accepted.
-     * re-defined to pass the rootPath to the serverProcess
+     * @brief internal callback triggered just after a new client as been accepted.
+     * (overridden to pass rootPath to serverProcess)
      *
-     * @param fd socket of the new communication(used to close the connection)
-     * @param clientIp ip of the client that just connect (used to filter)
+     * @param fd socket of new communication (used to close this connection)
+     * @param clientIp ip of client that just connected (also used for filtering)
      *
      */
     void onNewConnectionBase(const fd_t fd, const char *clientIp) noexcept override
