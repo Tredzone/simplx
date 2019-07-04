@@ -1,4 +1,4 @@
-#include "include/trz/pattern/bus/xthreadbus.hpp"
+#include "trz/pattern/bus/xthreadbus.hpp"
 #include "simplx.h"
 
 #include <iostream>

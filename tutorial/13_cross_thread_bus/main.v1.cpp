@@ -1,4 +1,4 @@
-#include "include/trz/pattern/bus/xthreadbus.hpp"
+#include "trz/pattern/bus/xthreadbus.hpp"
 #include "simplx.h"
 
 #include <chrono>
@@ -44,7 +44,7 @@ template <typename _TChanelIdType, std::size_t _BusExchangeBuffersSize> class Us
      * @param benchmarker 
      */
     UserThreadContext(_TChanelIdType subscriberId, _TChanelIdType publisherId, bool oneThreadCore = false, bool benchmarker = false)
-        : m_subscriber(Bus::get().getSubscriber(subscriberId)), m_publisher(Bus::get().getPublisher(publisherId)), m_oneThreadCore(oneThreadCore)
+        : m_subscriber(Bus::get().getSubscriber(subscriberId)), m_publisher(Bus::get().getPublisher(publisherId)), m_oneThreadCore(oneThreadCore),
           m_benchmarker(benchmarker), m_totalDelay(0)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
