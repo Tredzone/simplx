@@ -27,7 +27,7 @@ Simplx is open-sourced under the Apache 2.0 license, please see the [accompanyin
 
 ## Getting Started
 
-About a dozen tutorials are included here, please see the [Tutorials README](./tutorials/README.md).
+About a dozen tutorials are included here, please see the [Tutorials README](./tutorial/README.md).
 
 To build the first tutorial, open a terminal at the root of the repository and type:
 
