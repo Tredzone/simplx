@@ -12,7 +12,7 @@ In this directory you'll find the following tutorials, sorted by inceasing compl
 8. [ping pong](./08_pingpong/README.md) - Brings together earlier examples to create a two actor system with service discovery and two-way (asynchronous) communication. 
 9. [asynchronous exit](./09_sync_exit/README.md) - Demonstrates a controlled exit using requestDestroy()
 10. [timer](./10_timer/README.md) - Demonstrates a periodic timer using the timer_proxy class.
-11. [asynchronous keyboard polling](./11_keyboard/README.md) - Demonstrates the built-in keyboard actor, handling keypress events
+11. [asynchronous keyboard polling](./11_keyboard_actor/README.md) - Demonstrates the built-in keyboard actor, handling keypress events
 12. [asynchronous tcp/http client & server](./12_connector/README.md) - Demonstrates TCP and HTTP connector built-in actors
 13. [cross thread bus](./13_cross_thread_bus/README.md) - Demonstrates the integration of cooperative Actor with external services that are not so well-mannered. Can be used for integrating with thirdparty systems with their own eventloops and/or blocking services.
 
